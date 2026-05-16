@@ -1,0 +1,45 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.38;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(102, 178, 255, 0.48), transparent 34%),
+    radial-gradient(circle at 80% 15%, rgba(176, 144, 255, 0.42), transparent 35%),
+    radial-gradient(circle at 60% 80%, rgba(240, 218, 182, 0.5), transparent 40%);
+  filter: blur(12px);
+  animation: rgbFloat 18s ease-in-out infinite alternate;
+}
+
+@keyframes rgbFloat {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-2%, 1%, 0) scale(1.03);
+  }
+  100% {
+    transform: translate3d(2%, -1%, 0) scale(1.05);
+  }
+}
+
+body {
+  background-color: #f8f5f0;
+  background-image:
+    radial-gradient(circle at 8% 8%, rgba(217, 119, 6, 0.12), transparent 34%),
+    radial-gradient(circle at 88% 18%, rgba(30, 58, 138, 0.12), transparent 30%),
+    linear-gradient(165deg, #fdf8ef 0%, #f5f8ff 48%, #f9f4ed 100%);
+}
