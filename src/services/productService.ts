@@ -30,6 +30,8 @@ export type CatalogProduct = {
   description?: string;
   inStock?: boolean;
   suggestion?: string;
+  discountPercent?: number;
+  rating?: number;
 };
 
 type ProductInput = {
@@ -39,6 +41,8 @@ type ProductInput = {
   category: ProductCategory;
   image: string;
   tag: string;
+  discountPercent?: number;
+  rating?: number;
 };
 
 const toProduct = (id: string, data: Partial<CatalogProduct>): CatalogProduct => ({
@@ -53,6 +57,8 @@ const toProduct = (id: string, data: Partial<CatalogProduct>): CatalogProduct =>
   description: data.description || `${data.tag || "daily wear"} ${data.type || "general"} product`,
   inStock: data.inStock ?? true,
   suggestion: data.suggestion,
+  discountPercent: typeof data.discountPercent === "number" ? data.discountPercent : 0,
+  rating: typeof data.rating === "number" ? data.rating : 4.5,
 });
 
 const dummyCatalogProducts: CatalogProduct[] = [...fabricProducts.slice(0, 3), ...dupattaProducts.slice(0, 3)].map((product) =>
@@ -67,6 +73,8 @@ const dummyCatalogProducts: CatalogProduct[] = [...fabricProducts.slice(0, 3), .
     description: product.description,
     inStock: product.inStock,
     suggestion: product.suggestion,
+    discountPercent: product.discountPercent,
+    rating: product.rating,
     createdAt: null,
   }),
 );

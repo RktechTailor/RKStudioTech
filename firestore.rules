@@ -27,5 +27,11 @@ service cloud.firestore {
         && request.resource.data.service in ["tailoring", "fabric", "dupatta"];
       allow update, delete: if isAdmin();
     }
+
+    match /payment_records/{paymentId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
   }
 }

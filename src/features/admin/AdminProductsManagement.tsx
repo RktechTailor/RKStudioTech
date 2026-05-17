@@ -20,7 +20,11 @@ import {
   Typography,
 } from "@mui/material";
 import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import PhotoLibraryOutlinedIcon from "@mui/icons-material/PhotoLibraryOutlined";
+import Grid from "@mui/material/Grid2";
 import { ChangeEvent, DragEvent, useMemo, useState } from "react";
+import RKStudioLogo from "@/components/common/RKStudioLogo";
 import Layout from "@/components/layout/Layout";
 import { useGlobalLoading } from "@/context/LoadingContext";
 import { useProducts } from "@/hooks/useProducts";
@@ -40,6 +44,8 @@ type FormState = {
   category: ProductCategory;
   image: string;
   tag: string;
+  discountPercent: string;
+  rating: string;
 };
 
 const initialForm: FormState = {
@@ -49,6 +55,8 @@ const initialForm: FormState = {
   category: "fabric",
   image: "",
   tag: "daily wear",
+  discountPercent: "0",
+  rating: "4.5",
 };
 
 const MAX_UPLOAD_MB = 8;
@@ -128,6 +136,16 @@ export default function AdminProductsManagement() {
     setCompressionInfo("");
   };
 
+  const clearSelectedImage = () => {
+    if (imagePreview.startsWith("blob:")) {
+      URL.revokeObjectURL(imagePreview);
+    }
+
+    setField("image", "");
+    setImagePreview("");
+    setCompressionInfo("");
+  };
+
   const validate = () => {
     if (!form.name.trim() || !form.price || !form.type.trim() || !form.image.trim() || !form.tag.trim()) {
       return "Please fill all fields.";
@@ -135,6 +153,14 @@ export default function AdminProductsManagement() {
 
     if (Number.isNaN(Number(form.price)) || Number(form.price) <= 0) {
       return "Price must be a valid positive amount.";
+    }
+
+    if (Number.isNaN(Number(form.discountPercent)) || Number(form.discountPercent) < 0 || Number(form.discountPercent) > 90) {
+      return "Discount must be between 0 and 90.";
+    }
+
+    if (Number.isNaN(Number(form.rating)) || Number(form.rating) < 0 || Number(form.rating) > 5) {
+      return "Rating must be between 0 and 5.";
     }
 
     return "";
@@ -158,6 +184,8 @@ export default function AdminProductsManagement() {
         category: form.category,
         image: form.image.trim(),
         tag: form.tag.trim(),
+        discountPercent: Number(form.discountPercent),
+        rating: Number(form.rating),
       };
 
       if (editingId) {
@@ -252,6 +280,8 @@ export default function AdminProductsManagement() {
       category: product.category,
       image: product.image,
       tag: product.tag,
+      discountPercent: String(product.discountPercent || 0),
+      rating: String(product.rating || 4.5),
     });
 
     if (imagePreview.startsWith("blob:")) {
@@ -281,9 +311,33 @@ export default function AdminProductsManagement() {
       <Stack spacing={3}>
         <Card>
           <CardContent>
-            <Stack spacing={1}>
-              <Typography variant="h4">Admin Product Management</Typography>
-              <Typography color="text.secondary">Add and manage fabric/dupatta products from Firestore.</Typography>
+            <Stack spacing={1.2}>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ xs: "flex-start", sm: "center" }}>
+                <RKStudioLogo size={34} variant="full" />
+                <Stack spacing={0.35}>
+                  <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+                    <Typography variant="h4">Admin Product Management</Typography>
+                    <Box
+                      sx={{
+                        px: 1.2,
+                        py: 0.5,
+                        borderRadius: 999,
+                        fontSize: "0.72rem",
+                        fontWeight: 700,
+                        color: "primary.main",
+                        bgcolor: alpha("#DBEAFE", 0.95),
+                        border: `1px solid ${alpha("#93C5FD", 0.48)}`,
+                      }}
+                    >
+                      Brand Catalog Studio
+                    </Box>
+                  </Stack>
+                  <Typography color="text.secondary">Add and manage fabric/dupatta products from Firestore.</Typography>
+                </Stack>
+              </Stack>
+              <Typography variant="body2" color="text.secondary">
+                Upload your real RK Studio product photos here. The image will be compressed, uploaded to Firebase Storage, and linked automatically.
+              </Typography>
             </Stack>
           </CardContent>
         </Card>
@@ -300,6 +354,11 @@ export default function AdminProductsManagement() {
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                 <TextField label="Name" value={form.name} onChange={(e) => setField("name", e.target.value)} fullWidth />
                 <TextField label="Price (INR)" type="number" value={form.price} onChange={(e) => setField("price", e.target.value)} fullWidth />
+              </Stack>
+
+              <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                <TextField label="Discount %" type="number" value={form.discountPercent} onChange={(e) => setField("discountPercent", e.target.value)} fullWidth />
+                <TextField label="Rating (0-5)" type="number" inputProps={{ min: 0, max: 5, step: 0.1 }} value={form.rating} onChange={(e) => setField("rating", e.target.value)} fullWidth />
               </Stack>
 
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
@@ -340,6 +399,9 @@ export default function AdminProductsManagement() {
                     </Typography>
                     <input hidden type="file" accept="image/*" onChange={handleImageFileChange} />
                   </Box>
+                  <Typography variant="caption" color="text.secondary">
+                    Best results: portrait product photo, under 8MB, clear fabric/dupatta close-up.
+                  </Typography>
                   {uploadingImage ? (
                     <Stack direction="row" alignItems="center" spacing={1}>
                       <CircularProgress size={18} />
@@ -358,12 +420,23 @@ export default function AdminProductsManagement() {
               </Stack>
 
               {imagePreview ? (
-                <Box
-                  component="img"
-                  src={imagePreview}
-                  alt="Product preview"
-                  sx={{ width: 170, height: 170, objectFit: "cover", borderRadius: 2, border: "1px solid #E5E7EB" }}
-                />
+                <Stack spacing={1.2} alignItems="flex-start">
+                  <Box
+                    component="img"
+                    src={imagePreview}
+                    alt="Product preview"
+                    sx={{ width: 170, height: 170, objectFit: "cover", borderRadius: 2, border: "1px solid #E5E7EB" }}
+                  />
+                  <Stack direction="row" spacing={1}>
+                    <Button variant="outlined" component="label" size="small" disabled={uploadingImage}>
+                      Replace image
+                      <input hidden type="file" accept="image/*" onChange={handleImageFileChange} />
+                    </Button>
+                    <Button variant="text" color="error" size="small" onClick={clearSelectedImage} disabled={uploadingImage}>
+                      Remove image
+                    </Button>
+                  </Stack>
+                </Stack>
               ) : null}
 
               <Stack direction="row" spacing={1}>
@@ -381,6 +454,62 @@ export default function AdminProductsManagement() {
         <Card>
           <CardContent>
             <Stack spacing={2}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <PhotoLibraryOutlinedIcon color="primary" />
+                <Typography variant="h5">Quick Product Gallery</Typography>
+              </Stack>
+              <Typography variant="body2" color="text.secondary">
+                Use this gallery to quickly scan products and jump into edit mode for image replacement or pricing updates.
+              </Typography>
+
+              <Grid container spacing={2}>
+                {products.map((product) => (
+                  <Grid key={`gallery-${product.id}`} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+                    <Card sx={{ height: "100%" }}>
+                      <Box
+                        component="img"
+                        src={product.image}
+                        alt={product.name}
+                        sx={{ width: "100%", height: 180, objectFit: "cover" }}
+                      />
+                      <CardContent>
+                        <Stack spacing={1.1}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                            {product.name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {product.category} | {product.type}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Discount: {product.discountPercent || 0}% | Rating: {(product.rating || 0).toFixed(1)}
+                          </Typography>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<EditOutlinedIcon />}
+                            onClick={() => handleEdit(product)}
+                          >
+                            Edit This Product
+                          </Button>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+
+                {!loading && products.length === 0 ? (
+                  <Grid size={{ xs: 12 }}>
+                    <Alert severity="info">No products available in the gallery yet.</Alert>
+                  </Grid>
+                ) : null}
+              </Grid>
+            </Stack>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent>
+            <Stack spacing={2}>
               <Typography variant="h5">Products</Typography>
 
               <Box sx={{ overflowX: "auto" }}>
@@ -389,6 +518,8 @@ export default function AdminProductsManagement() {
                     <TableRow>
                       <TableCell>Name</TableCell>
                       <TableCell>Price</TableCell>
+                      <TableCell>Discount</TableCell>
+                      <TableCell>Rating</TableCell>
                       <TableCell>Type</TableCell>
                       <TableCell>Category</TableCell>
                       <TableCell>Tag</TableCell>
@@ -400,6 +531,8 @@ export default function AdminProductsManagement() {
                       <TableRow key={product.id}>
                         <TableCell>{product.name}</TableCell>
                         <TableCell>INR {product.price}</TableCell>
+                        <TableCell>{product.discountPercent || 0}%</TableCell>
+                        <TableCell>{(product.rating || 0).toFixed(1)}</TableCell>
                         <TableCell>{product.type}</TableCell>
                         <TableCell sx={{ textTransform: "capitalize" }}>{product.category}</TableCell>
                         <TableCell>{product.tag}</TableCell>
@@ -414,7 +547,7 @@ export default function AdminProductsManagement() {
 
                     {!loading && products.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6}>No products found.</TableCell>
+                        <TableCell colSpan={8}>No products found.</TableCell>
                       </TableRow>
                     ) : null}
                   </TableBody>

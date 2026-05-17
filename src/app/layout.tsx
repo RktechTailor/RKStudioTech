@@ -12,6 +12,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "RK Studio | Tailoring & Fabric in Narnaul",
   description: "RK Studio, Narnaul Haryana 123001 - Tailoring, Fabric, Dupatta",
+  icons: {
+    icon: "/branding/rk-compact.svg",
+    shortcut: "/branding/rk-compact.svg",
+    apple: "/branding/rk-compact.svg",
+  },
 };
 
 export default function RootLayout({

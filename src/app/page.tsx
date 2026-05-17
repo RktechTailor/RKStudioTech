@@ -1,83 +1,165 @@
-import Image from "next/image";
-import { Box, Button, Stack, Typography } from "@mui/material";
+import { Box, Button, Card, CardContent, Chip, Stack, Typography } from "@mui/material";
 import Grid from "@mui/material/Grid2";
+import ContentCutIcon from "@mui/icons-material/ContentCut";
+import CheckroomIcon from "@mui/icons-material/Checkroom";
+import StyleIcon from "@mui/icons-material/Style";
 import Link from "next/link";
-import CategoryCard from "@/components/common/CategoryCard";
 import Layout from "@/components/layout/Layout";
-import { serviceCategories } from "@/data/mockProducts";
+import { RK_STUDIO } from "@/utils/constants";
+
+const services = [
+  {
+    title: "Tailoring",
+    description: "Custom fitting aur stitching, daily se function wear tak.",
+    href: "/tailoring",
+    icon: ContentCutIcon,
+    buttonText: "Stitching Start Karein",
+  },
+  {
+    title: "Fabric",
+    description: "Best kapda options ke saath simple fabric guidance.",
+    href: "/fabric",
+    icon: CheckroomIcon,
+    buttonText: "Fabric Dekhein",
+  },
+  {
+    title: "Dupatta",
+    description: "Ready dupatta collection for daily aur festive styling.",
+    href: "/dupatta",
+    icon: StyleIcon,
+    buttonText: "Dupatta Dekhein",
+  },
+];
 
 export default function Home() {
   return (
     <Layout>
-      <Stack spacing={5}>
+      <Stack spacing={{ xs: 4, md: 6 }}>
         <Box
           sx={{
             p: { xs: 3, md: 5 },
-            borderRadius: 4,
-            background:
-              "linear-gradient(130deg, rgba(30,58,138,0.95) 10%, rgba(217,119,6,0.9) 100%)",
-            color: "#FFFFFF",
-            position: "relative",
-            overflow: "hidden",
+            borderRadius: 3,
+            border: "1px solid",
+            borderColor: "divider",
+            bgcolor: "background.paper",
           }}
         >
-          <Grid container spacing={3} alignItems="center">
-            <Grid size={{ xs: 12, md: 7 }}>
-              <Typography variant="h2" sx={{ fontSize: { xs: "2rem", md: "2.8rem" } }}>
-                Silai aur kapda - ab Narnaul me ghar baithe
-              </Typography>
-              <Typography sx={{ mt: 2, opacity: 0.95 }}>
-                Simple process, clear rates, aur trusted fitting. RK Studio aapke ghar ke style ko aur easy banata hai.
-              </Typography>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 3 }}>
-                <Button component={Link} href="/tailoring" variant="contained" color="secondary">
-                  Start Tailoring Order
-                </Button>
-                <Button component={Link} href="/fabric" variant="outlined" sx={{ borderColor: "#FFFFFF", color: "#FFFFFF" }}>
-                  Browse Fabric
-                </Button>
-              </Stack>
-            </Grid>
-            <Grid size={{ xs: 12, md: 5 }}>
-              <Box sx={{ position: "relative", height: 280, borderRadius: 3, overflow: "hidden" }}>
-                <Image
-                  src="https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=1200&q=80"
-                  alt="RK Studio tailoring"
-                  fill
-                  priority
-                  sizes="(max-width: 768px) 100vw, 40vw"
-                  style={{ objectFit: "cover" }}
-                />
-              </Box>
-            </Grid>
+          <Stack spacing={2.5} sx={{ maxWidth: 760 }}>
+            <Typography
+              variant="h1"
+              sx={{
+                fontSize: { xs: "1.9rem", md: "2.7rem" },
+                lineHeight: 1.2,
+              }}
+            >
+              Silai aur kapda - ab Narnaul me ghar baithe
+            </Typography>
+            <Typography color="text.secondary" sx={{ fontSize: { xs: "1rem", md: "1.1rem" } }}>
+              Custom tailoring, fabric selection aur ready dupatta - sab ek hi jagah.
+            </Typography>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+              <Button component={Link} href="/tailoring" variant="contained" size="large">
+                Stitching Start Karein
+              </Button>
+              <Button
+                component={Link}
+                href={RK_STUDIO.whatsappChatUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="outlined"
+                size="large"
+              >
+                WhatsApp par Baat Karein
+              </Button>
+            </Stack>
+          </Stack>
+        </Box>
+
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={1.2}
+          useFlexGap
+          sx={{ flexWrap: "wrap" }}
+        >
+          <Chip label={RK_STUDIO.servingText} variant="outlined" sx={{ borderRadius: 1.5 }} />
+          <Chip label={RK_STUDIO.homeVisitText} variant="outlined" sx={{ borderRadius: 1.5 }} />
+          <Chip label="Local trusted tailors" variant="outlined" sx={{ borderRadius: 1.5 }} />
+        </Stack>
+
+        <Box>
+          <Typography variant="h4" sx={{ mb: 2.5 }}>
+            Services
+          </Typography>
+          <Grid container spacing={2.5}>
+            {services.map((service) => {
+              const Icon = service.icon;
+
+              return (
+                <Grid key={service.title} size={{ xs: 12, md: 4 }}>
+                  <Card
+                    sx={{
+                      height: "100%",
+                      border: "1px solid",
+                      borderColor: "divider",
+                      boxShadow: "none",
+                    }}
+                  >
+                    <CardContent>
+                      <Stack spacing={1.5}>
+                        <Box
+                          sx={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 1.5,
+                            display: "grid",
+                            placeItems: "center",
+                            bgcolor: "grey.100",
+                          }}
+                        >
+                          <Icon color="primary" />
+                        </Box>
+                        <Typography variant="h6">{service.title}</Typography>
+                        <Typography color="text.secondary">{service.description}</Typography>
+                        <Box>
+                          <Button component={Link} href={service.href} variant="text">
+                            {service.buttonText}
+                          </Button>
+                        </Box>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
           </Grid>
         </Box>
 
-        <Stack spacing={1}>
-          <Typography variant="h4">Our Services</Typography>
-          <Typography color="text.secondary">Hinglish friendly support ke saath complete tailoring and fashion essentials.</Typography>
-        </Stack>
-
-        <Grid container spacing={2.5}>
-          {serviceCategories.map((service) => (
-            <Grid key={service.id} size={{ xs: 12, md: 4 }}>
-              <CategoryCard
-                title={service.title}
-                description={service.description}
-                image={service.image}
-                href={service.href}
-              />
-            </Grid>
-          ))}
-        </Grid>
-
-        <Box sx={{ p: 2.5, borderRadius: 2.5, bgcolor: "#E5EDF9" }}>
-          <Typography fontWeight={700} color="primary.main">
-            Serving Narnaul (123001)
+        <Box sx={{ p: { xs: 2.5, md: 3 }, border: "1px solid", borderColor: "divider", borderRadius: 2 }}>
+          <Typography variant="h4" sx={{ mb: 2 }}>
+            How It Works
           </Typography>
-          <Typography color="text.secondary">
-            Pickup, fitting updates, aur WhatsApp support available.
-          </Typography>
+          <Stack spacing={1.2}>
+            <Typography>1. Service choose karein</Typography>
+            <Typography>2. Details share karein / WhatsApp par baat karein</Typography>
+            <Typography>3. Stitching complete karwayein</Typography>
+          </Stack>
+        </Box>
+
+        <Box sx={{ p: { xs: 3, md: 4 }, borderRadius: 2, bgcolor: "grey.100", textAlign: "center" }}>
+          <Stack spacing={2} alignItems="center">
+            <Typography variant="h4">Ready to get started?</Typography>
+            <Button
+              component={Link}
+              href={RK_STUDIO.whatsappChatUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              variant="contained"
+              size="large"
+              sx={{ bgcolor: "#25D366", "&:hover": { bgcolor: "#1DAE57" } }}
+            >
+              Abhi WhatsApp Karein
+            </Button>
+          </Stack>
         </Box>
       </Stack>
     </Layout>

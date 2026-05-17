@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   CardContent,
+  Chip,
   Stack,
   TextField,
   ToggleButton,
@@ -16,6 +17,7 @@ import { ConfirmationResult } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Layout from "@/components/layout/Layout";
+import RKStudioLogo from "@/components/common/RKStudioLogo";
 import { useGlobalLoading } from "@/context/LoadingContext";
 import { useAuth } from "@/hooks/useAuth";
 import { isFirebaseConfigured } from "@/services/firebase";
@@ -135,13 +137,40 @@ export default function LoginPage() {
   return (
     <Layout>
       <Box sx={{ maxWidth: 560, mx: "auto" }}>
-        <Card sx={{ borderRadius: 4, boxShadow: "0 18px 40px rgba(15, 23, 42, 0.14)" }}>
+        <Card
+          sx={{
+            borderRadius: 4,
+            overflow: "hidden",
+            boxShadow: "0 24px 54px rgba(15, 23, 42, 0.16)",
+            background: "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(246,249,255,0.98) 100%)",
+          }}
+        >
           <CardContent sx={{ p: { xs: 3, md: 4 } }}>
             <Stack spacing={2.5}>
-              <Typography variant="h4">Login to RK Studio</Typography>
-              <Typography color="text.secondary">
-                Clean mock OTP testing with role selection. Real Firebase OTP can be enabled anytime.
-              </Typography>
+              <Stack spacing={1.5} alignItems="flex-start">
+                <Stack direction="row" spacing={1.4} alignItems="center">
+                  <RKStudioLogo size={42} variant="full" />
+                  <Stack spacing={0.3}>
+                    <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+                      <Typography
+                        variant="h4"
+                        sx={{
+                          fontWeight: 800,
+                          background: "linear-gradient(135deg, #0F2F7A 0%, #2563EB 55%, #6D28D9 100%)",
+                          WebkitBackgroundClip: "text",
+                          WebkitTextFillColor: "transparent",
+                        }}
+                      >
+                        Login to RK Studio
+                      </Typography>
+                      <Chip size="small" label="Premium Access" color="secondary" />
+                    </Stack>
+                    <Typography color="text.secondary">
+                      Enter the RK Studio space for tailoring orders, saved fabrics, and premium client support.
+                    </Typography>
+                  </Stack>
+                </Stack>
+              </Stack>
 
               <ToggleButtonGroup
                 value={role}

@@ -7,8 +7,18 @@ export const RK_STUDIO = {
   homeVisitText: "Home visit available",
   whatsappNumber: "918901501572",
   whatsappDisplay: "+918901501572",
-  instagramUrl: "https://instagram.com/rkstudio",
-  whatsappGroupUrl: "https://chat.whatsapp.com/placeholder",
+  whatsappChatUrl:
+    "https://wa.me/918901501572?text=Hello%20RK%20Studio%2C%20mujhe%20silai%20%2F%20kapda%20ke%20bare%20me%20jankari%20chahiye.",
+  instagramUrl: "https://www.instagram.com/radhakrishanstudio04?igsh=OThjNmVmNWo1ZXlq",
+  whatsappChannelUrl: "https://whatsapp.com/channel/0029VbCahWr6GcGBdft66I0w",
   // Hardcoded admin phone restriction as requested.
   adminPhone: "918901501572",
+  payment: {
+    currency: "INR",
+    tailoringAdvanceMin: 100,
+    tailoringAdvanceMax: 300,
+    tailoringAdvanceDefault: 100,
+    upiId: "rkstudio@upi",
+    upiPayeeName: "RK Studio",
+  },
 };

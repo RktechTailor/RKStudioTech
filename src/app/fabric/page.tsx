@@ -4,15 +4,15 @@ import dynamic from "next/dynamic";
 import { Alert, Skeleton, Snackbar, Stack, Typography } from "@mui/material";
 import Grid from "@mui/material/Grid2";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useGlobalLoading } from "@/context/LoadingContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useProducts } from "@/hooks/useProducts";
 import Layout from "@/components/layout/Layout";
-import { saveOrderToFirestore } from "@/services/orderService";
 import { CatalogProduct } from "@/services/productService";
 import { defaultFilters, ProductFilters } from "@/utils/filters";
 import { applyProductFilters } from "@/utils/filters";
-import { sendToWhatsApp } from "@/utils/whatsapp";
+import { createPendingPaymentToken, savePendingPaymentOrder } from "@/utils/paymentSession";
 
 const FabricFilters = dynamic(
   () => import("@/features/fabric/components/FabricFilters"),
@@ -23,6 +23,7 @@ const FabricGrid = dynamic(
 );
 
 export default function FabricPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const { trackAsync } = useGlobalLoading();
   const { products, loading, error: productsError } = useProducts({ category: "fabric" });
@@ -40,29 +41,37 @@ export default function FabricPage() {
     const phone = user?.phoneNumber || "Not provided";
 
     try {
+      const token = createPendingPaymentToken();
+
       await trackAsync(
-        saveOrderToFirestore({
-          userId,
-          service: "fabric",
-          orderDetails: {
+        Promise.resolve(
+          savePendingPaymentOrder(token, {
+            service: "fabric",
+            userId,
+            customerName: name,
+            customerPhone: phone,
+            orderDetails: {
+              productId: product.id,
+              productName: product.name,
+              price: `${product.price}`,
+              type: product.type,
+            },
             productId: product.id,
-            productName: product.name,
-            price: `${product.price}`,
-            type: product.type,
-          },
-        }),
+            amount: product.price,
+            paymentType: "full",
+            whatsappDetails: [
+              `Product: ${product.name}`,
+              `Type: ${product.type}`,
+              `Price: INR ${product.price}`,
+            ],
+          }),
+        ),
       );
 
-      sendToWhatsApp({
-        name,
-        phone,
-        service: "fabric",
-        details: `${product.name} | ${product.type} | INR ${product.price}`,
-      });
-
-      setNotice("We will contact you on WhatsApp.");
+      setNotice("Redirecting to payment...");
+      router.push(`/checkout?token=${encodeURIComponent(token)}`);
     } catch {
-      setError("Order save failed. Please login and check Firebase setup.");
+      setError("Unable to continue to payment. Please try again.");
     }
   };
 

@@ -2,6 +2,7 @@
 
 import {
   Alert,
+  alpha,
   Box,
   Button,
   Card,
@@ -20,12 +21,14 @@ import {
 } from "@mui/material";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import RKStudioLogo from "@/components/common/RKStudioLogo";
 import Layout from "@/components/layout/Layout";
 import { useGlobalLoading } from "@/context/LoadingContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrders } from "@/hooks/useOrders";
 import {
   getNextOrderStatus,
+  OrderDetails,
   OrderServiceType,
   OrderStatus,
   updateOrderStatus,
@@ -49,9 +52,27 @@ const formatDate = (createdAt: UserOrder["createdAt"] | AppUser["createdAt"]) =>
   }).format(createdAt.toDate());
 };
 
+const formatOrderDetailsLabel = (value: string) => {
+  return value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const flattenOrderDetails = (details: OrderDetails, parentLabel?: string): string[] => {
+  return Object.entries(details).flatMap(([key, value]) => {
+    const label = parentLabel ? `${parentLabel} ${formatOrderDetailsLabel(key)}` : formatOrderDetailsLabel(key);
+
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      return flattenOrderDetails(value as OrderDetails, label);
+    }
+
+    return `${label}: ${value ?? "-"}`;
+  });
+};
+
 const createOrderDetailsText = (order: UserOrder) => {
-  return Object.entries(order.orderDetails)
-    .map(([key, value]) => `${key}: ${value}`)
+  return flattenOrderDetails(order.orderDetails)
     .join(" | ");
 };
 
@@ -122,9 +143,30 @@ export default function AdminDashboard() {
       <Stack spacing={3}>
         <Card>
           <CardContent>
-            <Stack spacing={1}>
-              <Typography variant="h4">Admin Dashboard</Typography>
-              <Typography color="text.secondary">Manage all users and orders with live data.</Typography>
+            <Stack spacing={1.2}>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ xs: "flex-start", sm: "center" }}>
+                <RKStudioLogo size={34} variant="full" />
+                <Stack spacing={0.4}>
+                  <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+                    <Typography variant="h4">Admin Dashboard</Typography>
+                    <Box
+                      sx={{
+                        px: 1.2,
+                        py: 0.5,
+                        borderRadius: 999,
+                        fontSize: "0.72rem",
+                        fontWeight: 700,
+                        color: "primary.main",
+                        bgcolor: alpha("#DBEAFE", 0.95),
+                        border: `1px solid ${alpha("#93C5FD", 0.48)}`,
+                      }}
+                    >
+                      RK Control Room
+                    </Box>
+                  </Stack>
+                  <Typography color="text.secondary">Manage all users and orders with live data.</Typography>
+                </Stack>
+              </Stack>
               <Button component={Link} href="/admin/products" variant="outlined" sx={{ width: "fit-content" }}>
                 Add Product
               </Button>
@@ -174,6 +216,7 @@ export default function AdminDashboard() {
                       <TableCell>User</TableCell>
                       <TableCell>Phone</TableCell>
                       <TableCell>Service</TableCell>
+                      <TableCell>Payment</TableCell>
                       <TableCell>Details</TableCell>
                       <TableCell>Status</TableCell>
                       <TableCell>Date</TableCell>
@@ -193,6 +236,24 @@ export default function AdminDashboard() {
                           <TableCell>{userName}</TableCell>
                           <TableCell>{userPhone || "-"}</TableCell>
                           <TableCell sx={{ textTransform: "capitalize" }}>{order.service}</TableCell>
+                          <TableCell>
+                            <Stack spacing={0.6}>
+                              <Chip
+                                label={order.paymentStatus === "paid" ? "Paid" : "Pending"}
+                                size="small"
+                                color={order.paymentStatus === "paid" ? "success" : "warning"}
+                              />
+                              <Typography variant="caption" color="text.secondary">
+                                {order.paymentType ? `Type: ${order.paymentType}` : "Type: -"}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {typeof order.amountPaid === "number" ? `Amount: INR ${order.amountPaid}` : "Amount: -"}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {order.paymentId ? `Payment ID: ${order.paymentId}` : "Payment ID: -"}
+                              </Typography>
+                            </Stack>
+                          </TableCell>
                           <TableCell sx={{ maxWidth: 260 }}>{detailsText || "-"}</TableCell>
                           <TableCell>
                             <Chip label={formatStatusLabel(order.status)} size="small" color={order.status === "done" ? "success" : "warning"} />
@@ -243,7 +304,7 @@ export default function AdminDashboard() {
 
                     {filteredOrders.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7}>No orders found for selected filters.</TableCell>
+                        <TableCell colSpan={8}>No orders found for selected filters.</TableCell>
                       </TableRow>
                     ) : null}
                   </TableBody>

@@ -11,6 +11,8 @@ export type Product = {
   inStock?: boolean;
   tag?: string;
   suggestion?: string;
+  discountPercent?: number;
+  rating?: number;
 };
 
 export type ServiceCategory = {
@@ -54,72 +56,84 @@ export const fabricProducts: Product[] = [
     name: "Soft Cotton Floral",
     price: 950,
     image:
-      "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=900&q=80",
     type: "cotton",
     description: "Lightweight cotton for daily wear suits.",
     category: "fabric",
     inStock: true,
     tag: "daily wear",
+    discountPercent: 10,
+    rating: 4.4,
   },
   {
     id: "fab-2",
     name: "Rayon Printed Premium",
     price: 1350,
     image:
-      "https://images.unsplash.com/photo-1514996937319-344454492b37?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=900&q=80",
     type: "rayon",
     description: "Flowy rayon fabric for kurti sets.",
     category: "fabric",
     inStock: true,
     tag: "popular",
+    discountPercent: 15,
+    rating: 4.6,
   },
   {
     id: "fab-3",
     name: "Silk Blend Festive",
     price: 2890,
     image:
-      "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=900&q=80",
     type: "silk",
     description: "Rich silk blend for festive and wedding wear.",
     category: "fabric",
     inStock: true,
     tag: "festive",
+    discountPercent: 20,
+    rating: 4.8,
   },
   {
     id: "fab-4",
     name: "Linen Comfort",
     price: 1750,
     image:
-      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=900&q=80",
     type: "linen",
     description: "Breathable linen for smart casual outfits.",
     category: "fabric",
     inStock: false,
     tag: "premium",
+    discountPercent: 12,
+    rating: 4.2,
   },
   {
     id: "fab-5",
     name: "Cotton Handblock",
     price: 1220,
     image:
-      "https://images.unsplash.com/photo-1514996937319-344454492b37?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=80",
     type: "cotton",
     description: "Handblock-inspired print for classic looks.",
     category: "fabric",
     inStock: true,
     tag: "handblock",
+    discountPercent: 8,
+    rating: 4.3,
   },
   {
     id: "fab-6",
     name: "Rayon Party Texture",
     price: 2480,
     image:
-      "https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=80",
     type: "rayon",
     description: "Textured rayon for evening wear.",
     category: "fabric",
     inStock: true,
     tag: "party",
+    discountPercent: 18,
+    rating: 4.7,
   },
 ];
 
@@ -136,19 +150,23 @@ export const dupattaProducts: Product[] = [
     inStock: true,
     tag: "trending",
     suggestion: "Best with pastel straight kurti",
+    discountPercent: 12,
+    rating: 4.5,
   },
   {
     id: "dup-2",
     name: "Bandhani Cotton Dupatta",
     price: 980,
     image:
-      "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=80",
     type: "cotton",
     description: "Everyday bandhani inspired style.",
     category: "dupatta",
     inStock: true,
     tag: "daily wear",
     suggestion: "Match with plain white kurti",
+    discountPercent: 10,
+    rating: 4.4,
   },
   {
     id: "dup-3",
@@ -162,6 +180,8 @@ export const dupattaProducts: Product[] = [
     inStock: true,
     tag: "festive",
     suggestion: "Great with gold-tone anarkali",
+    discountPercent: 22,
+    rating: 4.9,
   },
   {
     id: "dup-4",
@@ -175,5 +195,7 @@ export const dupattaProducts: Product[] = [
     inStock: false,
     tag: "party",
     suggestion: "Pair with solid black kurti",
+    discountPercent: 14,
+    rating: 4.1,
   },
 ];

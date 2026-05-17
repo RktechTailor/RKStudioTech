@@ -5,19 +5,21 @@ type SendToWhatsAppInput = {
   name: string;
   phone: string;
   service: OrderServiceType;
-  details: string;
+  details: string | string[];
 };
 
 const WHATSAPP_NUMBER = RK_STUDIO.whatsappNumber;
 
 const buildOrderMessage = ({ name, phone, service, details }: SendToWhatsAppInput) => {
+  const detailLines = Array.isArray(details) ? details : [`Details: ${details}`];
+
   return [
     "Hello RK Studio,",
     `Name: ${name}`,
     `Phone: ${phone}`,
     `Service: ${service}`,
     `City: ${RK_STUDIO.city}`,
-    `Details: ${details}`,
+    ...detailLines,
     "Please confirm my order details.",
   ].join("\n");
 };

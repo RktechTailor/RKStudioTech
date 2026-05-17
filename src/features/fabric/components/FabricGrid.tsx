@@ -12,7 +12,7 @@ export default function FabricGrid({ products, onSelect }: FabricGridProps) {
     <Grid container spacing={2.5}>
       {products.map((product) => (
         <Grid key={product.id} size={{ xs: 12, sm: 6, lg: 4 }}>
-          <ProductCard product={product} onAddToCart={onSelect} actionLabel="Select Fabric" />
+          <ProductCard product={product} onAddToCart={onSelect} actionLabel="Buy Now" />
         </Grid>
       ))}
     </Grid>

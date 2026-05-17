@@ -3,11 +3,10 @@ import { Fab, Tooltip } from "@mui/material";
 import { RK_STUDIO } from "@/utils/constants";
 
 export default function WhatsAppButton() {
-  const href =
-    `https://wa.me/${RK_STUDIO.whatsappNumber}?text=Hello%20RK%20Studio%2C%20mujhe%20silai%20%2F%20kapda%20ke%20bare%20me%20jankari%20chahiye.`;
+  const href = RK_STUDIO.whatsappChatUrl;
 
   return (
-    <Tooltip title="WhatsApp par puchhiye" arrow>
+    <Tooltip title="Chat on WhatsApp" arrow>
       <Fab
         href={href}
         target="_blank"

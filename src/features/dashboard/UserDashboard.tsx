@@ -3,6 +3,7 @@
 import {
   Alert,
   Box,
+  Button,
   Card,
   CardContent,
   Chip,
@@ -15,10 +16,15 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
+import Grid from "@mui/material/Grid2";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import Layout from "@/components/layout/Layout";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrders } from "@/hooks/useOrders";
+import { useProducts } from "@/hooks/useProducts";
 import { OrderHistoryItem, OrderStatus, UserOrder } from "@/services/orderService";
+import { AppUser, saveUserToFirestore, subscribeToUser } from "@/services/userService";
 
 const formatOrderDate = (order: UserOrder) => {
   if (!order.createdAt) {
@@ -48,9 +54,86 @@ const formatHistoryDate = (history: OrderHistoryItem) => {
   }).format(maybeTimestamp.toDate());
 };
 
+const buildTailoringHref = (selectedFabricId?: string, compareFabricIds: string[] = []) => {
+  const params = new URLSearchParams();
+
+  if (selectedFabricId) {
+    params.set("fabric", selectedFabricId);
+  }
+
+  if (compareFabricIds.length > 0) {
+    params.set("compare", compareFabricIds.join(","));
+  }
+
+  const queryString = params.toString();
+  return queryString ? `/tailoring?${queryString}` : "/tailoring";
+};
+
 export default function UserDashboard() {
   const { user } = useAuth();
   const { orders, loading, error } = useOrders({ mode: "user", userId: user?.uid });
+  const { products } = useProducts({ category: "fabric" });
+  const [profile, setProfile] = useState<AppUser | null>(null);
+  const [profileError, setProfileError] = useState("");
+  const [removingFabricId, setRemovingFabricId] = useState("");
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setProfile(null);
+      return;
+    }
+
+    const unsubscribe = subscribeToUser(
+      user.uid,
+      (nextProfile) => {
+        setProfile(nextProfile);
+        setProfileError("");
+      },
+      () => {
+        setProfileError("Could not load saved fabrics.");
+      },
+    );
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  const savedFabricProducts = useMemo(() => {
+    const savedIds = profile?.savedFabricIds || [];
+
+    return savedIds
+      .map((savedId) => products.find((product) => product.id === savedId) || null)
+      .filter((product): product is NonNullable<typeof product> => Boolean(product));
+  }, [products, profile?.savedFabricIds]);
+
+  const handleRemoveSavedFabric = async (productId: string) => {
+    if (!user?.uid || !profile) {
+      return;
+    }
+
+    const nextSavedFabricIds = (profile.savedFabricIds || []).filter((savedId) => savedId !== productId);
+    const previousProfile = profile;
+
+    setRemovingFabricId(productId);
+    setProfile({
+      ...profile,
+      savedFabricIds: nextSavedFabricIds,
+    });
+    setProfileError("");
+
+    try {
+      await saveUserToFirestore({
+        uid: user.uid,
+        name: user.displayName || previousProfile.name || "Customer",
+        phone: user.phoneNumber || previousProfile.phone || "-",
+        savedFabricIds: nextSavedFabricIds,
+      });
+    } catch {
+      setProfile(previousProfile);
+      setProfileError("Could not update saved fabrics.");
+    } finally {
+      setRemovingFabricId("");
+    }
+  };
 
   return (
     <Layout>
@@ -63,6 +146,88 @@ export default function UserDashboard() {
               Logged in phone: <strong>{user?.phoneNumber || "-"}</strong>
             </Typography>
             <Typography color="text.secondary">Serving Narnaul (123001) | Home visit available</Typography>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Stack spacing={2}>
+            <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1.5}>
+              <Box>
+                <Typography variant="h5">Saved Fabrics</Typography>
+                <Typography color="text.secondary">Your saved RK Studio fabric choices are available here for quick access.</Typography>
+              </Box>
+              <Button component={Link} href="/tailoring" variant="outlined">
+                Open Tailoring Picker
+              </Button>
+            </Stack>
+
+            {profileError ? <Alert severity="warning">{profileError}</Alert> : null}
+
+            {savedFabricProducts.length === 0 ? (
+              <Alert severity="info">No saved fabrics yet. Save fabric options from the tailoring page to see them here.</Alert>
+            ) : (
+              <Grid container spacing={2}>
+                {savedFabricProducts.map((product) => {
+                  const comparePartner = savedFabricProducts.find((savedProduct) => savedProduct.id !== product.id) || null;
+                  const tailoringHref = buildTailoringHref(product.id);
+                  const compareHref = comparePartner
+                    ? buildTailoringHref(product.id, [product.id, comparePartner.id])
+                    : tailoringHref;
+
+                  return (
+                  <Grid key={product.id} size={{ xs: 12, sm: 6, lg: 4 }}>
+                    <Card variant="outlined" sx={{ height: "100%" }}>
+                      <Box
+                        component="img"
+                        src={product.image}
+                        alt={product.name}
+                        sx={{ width: "100%", height: 180, objectFit: "cover" }}
+                      />
+                      <CardContent>
+                        <Stack spacing={1}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                            {product.name}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {product.type} | {product.tag}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            INR {product.price}
+                            {product.discountPercent ? ` | ${product.discountPercent}% off` : ""}
+                            {product.rating ? ` | ${product.rating.toFixed(1)} rating` : ""}
+                          </Typography>
+                          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                            <Button component={Link} href={tailoringHref} variant="contained" size="small">
+                              Use In Tailoring
+                            </Button>
+                            <Button
+                              component={Link}
+                              href={compareHref}
+                              variant="outlined"
+                              size="small"
+                              disabled={!comparePartner}
+                            >
+                              Compare In Tailoring
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              color="error"
+                              size="small"
+                              disabled={removingFabricId === product.id}
+                              onClick={() => handleRemoveSavedFabric(product.id)}
+                            >
+                              {removingFabricId === product.id ? "Removing..." : "Remove"}
+                            </Button>
+                          </Stack>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                );})}
+              </Grid>
+            )}
           </Stack>
         </CardContent>
       </Card>
