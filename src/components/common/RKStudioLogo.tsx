@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { Box, SxProps, Theme } from "@mui/material";
 import { getBrandingLogoPath } from "@/branding/logoConfig";
 

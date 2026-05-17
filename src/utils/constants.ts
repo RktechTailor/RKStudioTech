@@ -3,8 +3,8 @@ export const RK_STUDIO = {
   city: "Narnaul",
   state: "Haryana",
   pinCode: "123001",
-  servingText: "Serving Narnaul (123001)",
-  homeVisitText: "Home visit available",
+  servingText: "Narnaul (123001) me seva",
+  homeVisitText: "Ghar aakar service milegi",
   whatsappNumber: "918901501572",
   whatsappDisplay: "+918901501572",
   whatsappChatUrl:

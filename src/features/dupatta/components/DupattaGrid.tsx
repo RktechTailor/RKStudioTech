@@ -49,17 +49,17 @@ export default function DupattaGrid({ products }: DupattaGridProps) {
         details: `${product.name} | INR ${product.price}`,
       });
 
-      setAddedItem("We will contact you on WhatsApp.");
+      setAddedItem("Hum aapse WhatsApp par baat karenge.");
       setCartCount((prev) => prev + 1);
     } catch {
-      setError("Order save failed. Please login and check Firebase setup.");
+      setError("Order save nahi hua. Login karein aur Firebase setup check karein.");
     }
   };
 
   return (
     <>
       <Stack direction="row" justifyContent="flex-end" mb={2}>
-        <Chip label={`Cart items: ${cartCount}`} color="secondary" />
+        <Chip label={`Cart item: ${cartCount}`} color="secondary" />
       </Stack>
 
       {error ? (
@@ -75,7 +75,7 @@ export default function DupattaGrid({ products }: DupattaGridProps) {
               product={product}
               showSuggestion
               onAddToCart={handleAddToCart}
-              actionLabel="Add to cart"
+              actionLabel="Order karein"
             />
           </Grid>
         ))}

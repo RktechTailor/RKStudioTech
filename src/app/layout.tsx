@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Poppins } from "next/font/google";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v15-appRouter";
 import { CssBaseline, ThemeProvider } from "@mui/material";
 import Footer from "@/components/layout/Footer";
@@ -10,9 +11,15 @@ import { LoadingProvider } from "@/context/LoadingContext";
 import theme from "@/theme/theme";
 import "./globals.css";
 
+const poppins = Poppins({
+  subsets: ["latin", "devanagari"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "RK Studio | Tailoring & Fabric in Narnaul",
-  description: "RK Studio, Narnaul Haryana 123001 - Tailoring, Fabric, Dupatta",
+  title: "RK Studio | Silai aur Kapda - Narnaul",
+  description: "Narnaul me silai, kapda aur dupatta ke liye simple aur easy app.",
   icons: {
     icon: getBrandingLogoPath("compact"),
     shortcut: getBrandingLogoPath("compact"),
@@ -27,7 +34,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
+      <body className={poppins.className}>
         <AppRouterCacheProvider>
           <ThemeProvider theme={theme}>
             <CssBaseline />

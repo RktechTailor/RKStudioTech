@@ -11,6 +11,7 @@ import { OrderDetails } from "@/services/orderService";
 import { saveUserToFirestore, subscribeToUser } from "@/services/userService";
 import { RK_STUDIO } from "@/utils/constants";
 import { createPendingPaymentToken, savePendingPaymentOrder } from "@/utils/paymentSession";
+import { getTailoringValidationMessage } from "@/features/tailoring/utils/validation";
 import TailoringStepper from "./TailoringStepper";
 
 type FabricSource = "" | "own" | "external" | "rkstudio";
@@ -40,7 +41,7 @@ type TailoringPickerFilters = {
   sortBy: string;
 };
 
-const stepLabels = ["Category", "Design", "Measurements", "Fabric Source", "Summary"];
+const stepLabels = ["Category", "Design", "Nape", "Kapda Source", "Summary"];
 const SAVED_FABRICS_STORAGE_KEY = "rkstudio_saved_fabric_ids";
 
 const readSavedFabricIdsFromStorage = () => {
@@ -67,18 +68,18 @@ const readSavedFabricIdsFromStorage = () => {
 const fabricSourceOptions: Array<{ value: Exclude<FabricSource, "">; title: string; description: string }> = [
   {
     value: "own",
-    title: "I already have fabric",
-    description: "Share the fabric type, color, and any stitching notes.",
+    title: "Mere paas kapda hai",
+    description: "Kapda type, color aur note batayein.",
   },
   {
     value: "external",
-    title: "I will buy fabric myself",
-    description: "Tell us which fabric you plan to buy and add a link if available.",
+    title: "Main khud kapda kharidunga",
+    description: "Jo kapda lena hai uska naam aur link batayein.",
   },
   {
     value: "rkstudio",
-    title: "I want RK Studio to provide fabric",
-    description: "Choose a fabric product directly from RK Studio inventory.",
+    title: "RK Studio se kapda chahiye",
+    description: "RK Studio ka kapda seedha yahin se chune.",
   },
 ];
 
@@ -436,26 +437,10 @@ export default function TailoringForm() {
   }, [fabricSummaryLines, formData.bust, formData.category, formData.design, formData.extraMeasurement, formData.length, formData.waist]);
 
   const validationMessage = useMemo(() => {
-    if (activeStep === 0 && !formData.category) return "Please select tailoring category.";
-    if (activeStep === 1 && !formData.design) return "Please select design type.";
-    if (activeStep === 2 && (!formData.bust || !formData.waist || !formData.length)) {
-      return "Please fill all required measurements.";
-    }
-    if (activeStep === 3 && !formData.fabricSource) return "Please choose fabric source.";
-    if (activeStep === 3 && formData.fabricSource === "own" && (!formData.fabricType || !formData.fabricColor)) {
-      return "Please add fabric type and color.";
-    }
-    if (activeStep === 3 && formData.fabricSource === "external" && !formData.fabricName) {
-      return "Please add the fabric name you plan to buy.";
-    }
-    if (activeStep === 3 && formData.fabricSource === "rkstudio" && !formData.rkStudioProductId) {
-      return "Please select an RK Studio fabric product.";
-    }
-    if (activeStep === 4 && (!formData.customerName || !formData.phone)) {
-      return "Please add name and phone for callback.";
-    }
-
-    return "";
+    return getTailoringValidationMessage({
+      activeStep,
+      formData,
+    });
   }, [activeStep, formData]);
 
   const handleNext = async () => {
@@ -505,7 +490,7 @@ export default function TailoringForm() {
 
         router.push(`/checkout?token=${encodeURIComponent(token)}`);
       } catch {
-        setError("Unable to continue to payment. Please try again.");
+        setError("Payment page nahi khul payi. Dobara koshish karein.");
       } finally {
         setSubmitting(false);
       }
@@ -525,10 +510,10 @@ export default function TailoringForm() {
     <Card>
       <CardContent>
         <Typography variant="h4" mb={1}>
-          Tailoring Order Form
+          Silai Order Form
         </Typography>
         <Typography color="text.secondary" mb={3}>
-          Step by step details bharein, hum aapko jaldi contact karenge.
+          Step by step detail bharein, hum jaldi contact karenge.
         </Typography>
 
         <TailoringStepper steps={stepLabels} activeStep={activeStep} />
@@ -536,7 +521,7 @@ export default function TailoringForm() {
         <Stack spacing={3}>
             {activeStep === 0 ? (
               <FormControl>
-                <FormLabel>1. Category selection</FormLabel>
+                <FormLabel>1. Category chune</FormLabel>
                 <RadioGroup
                   value={formData.category}
                   onChange={(event) => updateField("category", event.target.value)}
@@ -553,19 +538,19 @@ export default function TailoringForm() {
               <TextField
                 select
                 fullWidth
-                label="2. Design selection"
+                label="2. Design chune"
                 value={formData.design}
                 onChange={(event) => updateField("design", event.target.value)}
               >
-                <MenuItem value="simple">Simple Design</MenuItem>
-                <MenuItem value="party">Party Wear Design</MenuItem>
-                <MenuItem value="bridal">Bridal/Festive Design</MenuItem>
+                <MenuItem value="simple">Simple</MenuItem>
+                <MenuItem value="party">Party Wear</MenuItem>
+                <MenuItem value="bridal">Bridal/Festive</MenuItem>
               </TextField>
             ) : null}
 
             {activeStep === 2 ? (
               <Box>
-                <Typography mb={2}>3. Measurement form (in inches)</Typography>
+                <Typography mb={2}>3. Nape likhein (inch me)</Typography>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, md: 4 }}>
                     <TextField
@@ -597,7 +582,7 @@ export default function TailoringForm() {
                       fullWidth
                       multiline
                       minRows={2}
-                      placeholder="Any additional size details, notes, or custom measurements"
+                      placeholder="Agar koi extra nape ho to yahan likhein"
                       value={formData.extraMeasurement}
                       onChange={(event) => updateField("extraMeasurement", event.target.value)}
                     />
@@ -609,7 +594,7 @@ export default function TailoringForm() {
             {activeStep === 3 ? (
               <Stack spacing={2.5}>
                 <FormControl>
-                  <FormLabel>4. Fabric Source</FormLabel>
+                  <FormLabel>4. Kapda kahan se aayega</FormLabel>
                   <RadioGroup
                     value={formData.fabricSource}
                     onChange={(event) => updateFabricSource(event.target.value as FabricSource)}
@@ -734,7 +719,7 @@ export default function TailoringForm() {
                     {!productsLoading && products.length > 0 ? (
                       <>
                         <Typography variant="body2" color="text.secondary">
-                          Choose the fabric visually. Tap any card to select it for your tailoring order.
+                          Neeche card me se kapda chune.
                         </Typography>
                         {selectedFabricProduct ? (
                           <Card
@@ -759,23 +744,23 @@ export default function TailoringForm() {
                               <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0 }}>
                                 <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
                                   <Typography variant="caption" color="primary.main" sx={{ fontWeight: 700, letterSpacing: 0.6 }}>
-                                    SELECTED FABRIC
+                                    SELECTED KAPDA
                                   </Typography>
                                   {isDashboardPrefilledSelection ? (
-                                    <Chip size="small" color="secondary" label="Prefilled from dashboard" />
+                                    <Chip size="small" color="secondary" label="Dashboard se select" />
                                   ) : null}
                                   {hasChangedFromPrefilledSelection ? (
-                                    <Chip size="small" variant="outlined" color="warning" label="Changed from prefilled selection" />
+                                    <Chip size="small" variant="outlined" color="warning" label="Aapne selection badla" />
                                   ) : null}
                                 </Stack>
                                 {isDashboardPrefilledSelection ? (
                                   <Typography variant="caption" color="text.secondary">
-                                    This fabric was loaded from your dashboard. You can keep it or change the selection below.
+                                    Ye kapda dashboard se aaya hai. Chahein to badal sakte hain.
                                   </Typography>
                                 ) : null}
                                 {hasChangedFromPrefilledSelection ? (
                                   <Typography variant="caption" color="text.secondary">
-                                    You changed the original dashboard selection. This new fabric will be used for the tailoring order.
+                                    Aapka naya kapda selection order me use hoga.
                                   </Typography>
                                 ) : null}
                                 <Typography variant="h6">{selectedFabricProduct.name}</Typography>
@@ -789,22 +774,22 @@ export default function TailoringForm() {
                                 </Typography>
                               </Stack>
                               <Button variant="outlined" color="inherit" onClick={() => updateField("rkStudioProductId", "") }>
-                                Clear selection
+                                Selection hataein
                               </Button>
                             </Stack>
                           </Card>
                         ) : (
-                          <Alert severity="info">No fabric selected yet. Pick one card below to continue.</Alert>
+                          <Alert severity="info">Abhi kapda select nahi hai. Neeche se ek card chune.</Alert>
                         )}
                         {compareProducts.length > 0 ? (
                           <Card variant="outlined" sx={{ borderColor: "divider" }}>
                             <Stack spacing={1.5} sx={{ p: 2 }}>
                               <Stack direction="row" justifyContent="space-between" alignItems="center">
                                 <Typography variant="subtitle1" fontWeight={700}>
-                                  Compare Fabrics
+                                  Kapda Compare
                                 </Typography>
                                 <Button size="small" color="inherit" onClick={() => setCompareProductIds([])}>
-                                  Clear compare
+                                  Compare hataein
                                 </Button>
                               </Stack>
                               <Grid container spacing={2}>
@@ -831,10 +816,10 @@ export default function TailoringForm() {
                                         </Typography>
                                         <Stack direction="row" spacing={1}>
                                           <Button variant="contained" size="small" onClick={() => updateField("rkStudioProductId", product.id)}>
-                                            Select
+                                            Chune
                                           </Button>
                                           <Button variant="outlined" size="small" onClick={() => toggleCompareProduct(product.id)}>
-                                            Remove
+                                            Hatayein
                                           </Button>
                                         </Stack>
                                       </Stack>
@@ -855,7 +840,7 @@ export default function TailoringForm() {
                                       }}
                                     >
                                       <Typography color="text.secondary" textAlign="center" sx={{ px: 2 }}>
-                                        Select one more fabric with Compare to view side-by-side details.
+                                        Side by side dekhne ke liye ek aur kapda compare karein.
                                       </Typography>
                                     </Card>
                                   </Grid>
@@ -869,10 +854,10 @@ export default function TailoringForm() {
                             <Stack spacing={1.5} sx={{ p: 2 }}>
                               <Stack direction="row" justifyContent="space-between" alignItems="center">
                                 <Typography variant="subtitle1" fontWeight={700}>
-                                  Saved For Later
+                                  Baad me dekhne ke liye save
                                 </Typography>
                                 <Button size="small" color="inherit" onClick={() => setSavedProductIds([])}>
-                                  Clear saved
+                                  Save hataein
                                 </Button>
                               </Stack>
                               <Grid container spacing={2}>
@@ -892,10 +877,10 @@ export default function TailoringForm() {
                                         </Typography>
                                         <Stack direction="row" spacing={1}>
                                           <Button variant="contained" size="small" onClick={() => updateField("rkStudioProductId", product.id)}>
-                                            Select
+                                            Chune
                                           </Button>
                                           <Button variant="outlined" size="small" onClick={() => toggleSavedProduct(product.id)}>
-                                            Remove
+                                            Hatayein
                                           </Button>
                                         </Stack>
                                       </Stack>
@@ -910,8 +895,8 @@ export default function TailoringForm() {
                           <Grid size={{ xs: 12, md: 4 }}>
                             <TextField
                               fullWidth
-                              label="Search fabric"
-                              placeholder="Search by name, type, or tag"
+                              label="Kapda search"
+                              placeholder="Naam, type ya tag se search karein"
                               value={pickerFilters.query}
                               onChange={(event) => setPickerFilters((prev) => ({ ...prev, query: event.target.value }))}
                             />
@@ -924,7 +909,7 @@ export default function TailoringForm() {
                               value={pickerFilters.type}
                               onChange={(event) => setPickerFilters((prev) => ({ ...prev, type: event.target.value }))}
                             >
-                              <MenuItem value="all">All types</MenuItem>
+                              <MenuItem value="all">Sab type</MenuItem>
                               {availableFabricTypes.map((type) => (
                                 <MenuItem key={type} value={type}>
                                   {type}
@@ -936,34 +921,34 @@ export default function TailoringForm() {
                             <TextField
                               select
                               fullWidth
-                              label="Max price"
+                              label="Max rate"
                               value={pickerFilters.maxPrice}
                               onChange={(event) => setPickerFilters((prev) => ({ ...prev, maxPrice: event.target.value }))}
                             >
-                              <MenuItem value="1000">Up to INR 1000</MenuItem>
-                              <MenuItem value="1500">Up to INR 1500</MenuItem>
-                              <MenuItem value="2500">Up to INR 2500</MenuItem>
-                              <MenuItem value="5000">Up to INR 5000</MenuItem>
+                              <MenuItem value="1000">INR 1000 tak</MenuItem>
+                              <MenuItem value="1500">INR 1500 tak</MenuItem>
+                              <MenuItem value="2500">INR 2500 tak</MenuItem>
+                              <MenuItem value="5000">INR 5000 tak</MenuItem>
                             </TextField>
                           </Grid>
                           <Grid size={{ xs: 12, md: 3 }}>
                             <TextField
                               select
                               fullWidth
-                              label="Sort by"
+                              label="Sort"
                               value={pickerFilters.sortBy}
                               onChange={(event) => setPickerFilters((prev) => ({ ...prev, sortBy: event.target.value }))}
                             >
-                              <MenuItem value="featured">Featured</MenuItem>
-                              <MenuItem value="price-low">Price: Low to High</MenuItem>
-                              <MenuItem value="price-high">Price: High to Low</MenuItem>
-                              <MenuItem value="discount-first">Discount First</MenuItem>
-                              <MenuItem value="rating-high">Top Rated</MenuItem>
+                              <MenuItem value="featured">Best</MenuItem>
+                              <MenuItem value="price-low">Rate: kam se zyada</MenuItem>
+                              <MenuItem value="price-high">Rate: zyada se kam</MenuItem>
+                              <MenuItem value="discount-first">Discount pehle</MenuItem>
+                              <MenuItem value="rating-high">Top rating</MenuItem>
                             </TextField>
                           </Grid>
                         </Grid>
                         <Typography variant="caption" color="text.secondary">
-                          Showing {filteredFabricProducts.length} fabric option{filteredFabricProducts.length === 1 ? "" : "s"}.
+                          {filteredFabricProducts.length} kapda option dikh rahe hain.
                         </Typography>
                         <Grid container spacing={2}>
                           {filteredFabricProducts.map((product) => {
@@ -1030,7 +1015,7 @@ export default function TailoringForm() {
                                           updateField("rkStudioProductId", product.id);
                                         }}
                                       >
-                                        {isSelected ? "Selected" : "Select Fabric"}
+                                        {isSelected ? "Selected" : "Kapda chune"}
                                       </Button>
                                       <Button
                                         variant={isCompared ? "contained" : "text"}
@@ -1063,13 +1048,13 @@ export default function TailoringForm() {
                         </Grid>
                         {filteredFabricProducts.length === 0 ? (
                           <Alert severity="info">
-                            No fabrics match your current search or filters. Try a different type or higher price range.
+                            Is search ya filter me kapda nahi mila. Dusra type ya rate range chune.
                           </Alert>
                         ) : null}
                       </>
                     ) : null}
                     {!productsLoading && products.length === 0 ? (
-                      <Alert severity="info">No RK Studio fabric products are available right now.</Alert>
+                      <Alert severity="info">Abhi RK Studio ka kapda available nahi hai.</Alert>
                     ) : null}
                   </Stack>
                 ) : null}
@@ -1095,7 +1080,7 @@ export default function TailoringForm() {
                   </Stack>
                 </Alert>
                 <TextField
-                  label="Your name"
+                  label="Aapka naam"
                   value={formData.customerName}
                   onChange={(event) => updateField("customerName", event.target.value)}
                 />
@@ -1104,6 +1089,9 @@ export default function TailoringForm() {
                   value={formData.phone}
                   onChange={(event) => updateField("phone", event.target.value)}
                 />
+                <Typography variant="caption" color="text.secondary">
+                  Koi dikkat ho to WhatsApp karein. Hum madad ke liye yahan hain.
+                </Typography>
               </Stack>
             ) : null}
 
@@ -1111,10 +1099,10 @@ export default function TailoringForm() {
 
             <Stack direction="row" justifyContent="space-between">
               <Button variant="outlined" onClick={handleBack} disabled={activeStep === 0}>
-                Back
+                Peeche
               </Button>
               <Button variant="contained" onClick={handleNext} disabled={submitting}>
-                {isLast ? "Proceed to Payment" : "Next"}
+                {isLast ? "Payment par badhein" : "Aage badhein"}
               </Button>
             </Stack>
           </Stack>

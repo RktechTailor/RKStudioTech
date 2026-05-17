@@ -38,12 +38,15 @@ import { AppUser, subscribeToAllUsers } from "@/services/userService";
 import { buildWhatsAppUrl, sendToWhatsApp } from "@/utils/whatsapp";
 
 const formatStatusLabel = (status: OrderStatus) => {
+  if (status === "pending") return "Pending";
+  if (status === "in_progress") return "Kaam chal raha hai";
+  if (status === "done") return "Poora";
   return status;
 };
 
 const formatDate = (createdAt: UserOrder["createdAt"] | AppUser["createdAt"]) => {
   if (!createdAt) {
-    return "Just now";
+    return "Abhi";
   }
 
   return new Intl.DateTimeFormat("en-IN", {
@@ -88,7 +91,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const unsubscribeUsers = subscribeToAllUsers(setUsers, () => {
-      setError("Failed to load users.");
+      setError("Users load nahi ho paaye.");
     });
 
     return () => {
@@ -132,7 +135,7 @@ export default function AdminDashboard() {
       setUpdatingOrderId(order.id);
       await trackAsync(updateOrderStatus(order.id, nextStatus, user?.phoneNumber || "admin", "Updated by admin"));
     } catch {
-      setError("Could not update order status.");
+      setError("Order status update nahi ho paaya.");
     } finally {
       setUpdatingOrderId("");
     }
@@ -148,7 +151,7 @@ export default function AdminDashboard() {
                 <RKStudioLogo size={34} variant="full" />
                 <Stack spacing={0.4}>
                   <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
-                    <Typography variant="h4">Admin Dashboard</Typography>
+                    <Typography variant="h4">Admin Kendra</Typography>
                     <Box
                       sx={{
                         px: 1.2,
@@ -161,14 +164,14 @@ export default function AdminDashboard() {
                         border: `1px solid ${alpha("#93C5FD", 0.48)}`,
                       }}
                     >
-                      RK Control Room
+                      RK Prabandhan
                     </Box>
                   </Stack>
-                  <Typography color="text.secondary">Manage all users and orders with live data.</Typography>
+                  <Typography color="text.secondary">Yahaan se grahak aur orders sambhalein.</Typography>
                 </Stack>
               </Stack>
               <Button component={Link} href="/admin/products" variant="outlined" sx={{ width: "fit-content" }}>
-                Add Product
+                Product jodein
               </Button>
             </Stack>
           </CardContent>
@@ -179,33 +182,33 @@ export default function AdminDashboard() {
         <Card>
           <CardContent>
             <Stack spacing={2}>
-              <Typography variant="h5">Orders</Typography>
+              <Typography variant="h5">Order</Typography>
 
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                 <TextField
                   select
-                  label="Service"
+                  label="Seva"
                   value={serviceFilter}
                   onChange={(event) => setServiceFilter(event.target.value as "all" | OrderServiceType)}
                   sx={{ minWidth: 180 }}
                 >
-                  <MenuItem value="all">All services</MenuItem>
-                  <MenuItem value="tailoring">Tailoring</MenuItem>
-                  <MenuItem value="fabric">Fabric</MenuItem>
+                  <MenuItem value="all">Sab service</MenuItem>
+                  <MenuItem value="tailoring">Silai</MenuItem>
+                  <MenuItem value="fabric">Kapda</MenuItem>
                   <MenuItem value="dupatta">Dupatta</MenuItem>
                 </TextField>
 
                 <TextField
                   select
-                  label="Status"
+                  label="Haalat"
                   value={statusFilter}
                   onChange={(event) => setStatusFilter(event.target.value as "all" | OrderStatus)}
                   sx={{ minWidth: 180 }}
                 >
-                  <MenuItem value="all">All statuses</MenuItem>
+                  <MenuItem value="all">Sab status</MenuItem>
                   <MenuItem value="pending">Pending</MenuItem>
-                  <MenuItem value="in progress">In Progress</MenuItem>
-                  <MenuItem value="done">Done</MenuItem>
+                  <MenuItem value="in progress">Kaam chal raha hai</MenuItem>
+                  <MenuItem value="done">Poora</MenuItem>
                 </TextField>
               </Stack>
 
@@ -213,20 +216,20 @@ export default function AdminDashboard() {
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell>User</TableCell>
-                      <TableCell>Phone</TableCell>
-                      <TableCell>Service</TableCell>
+                      <TableCell>Grahak</TableCell>
+                      <TableCell>Mobile</TableCell>
+                      <TableCell>Seva</TableCell>
                       <TableCell>Payment</TableCell>
-                      <TableCell>Details</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Date</TableCell>
-                      <TableCell>Actions</TableCell>
+                      <TableCell>Jankari</TableCell>
+                      <TableCell>Haalat</TableCell>
+                      <TableCell>Tarikh</TableCell>
+                      <TableCell>Karya</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {filteredOrders.map((order) => {
                       const linkedUser = usersById[order.userId];
-                      const userName = linkedUser?.name || "Customer";
+                      const userName = linkedUser?.name || "Grahak";
                       const userPhone = linkedUser?.phone || "";
                       const nextStatus = getNextOrderStatus(order.status);
                       const detailsText = createOrderDetailsText(order);
@@ -244,10 +247,10 @@ export default function AdminDashboard() {
                                 color={order.paymentStatus === "paid" ? "success" : "warning"}
                               />
                               <Typography variant="caption" color="text.secondary">
-                                {order.paymentType ? `Type: ${order.paymentType}` : "Type: -"}
+                                {order.paymentType ? `Prakar: ${order.paymentType}` : "Prakar: -"}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
-                                {typeof order.amountPaid === "number" ? `Amount: INR ${order.amountPaid}` : "Amount: -"}
+                                {typeof order.amountPaid === "number" ? `Rakam: INR ${order.amountPaid}` : "Rakam: -"}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
                                 {order.paymentId ? `Payment ID: ${order.paymentId}` : "Payment ID: -"}
@@ -268,10 +271,10 @@ export default function AdminDashboard() {
                                   onClick={() => handleAdvanceStatus(order)}
                                   disabled={updatingOrderId === order.id}
                                 >
-                                  Mark {formatStatusLabel(nextStatus)}
+                                  {formatStatusLabel(nextStatus)} karein
                                 </Button>
                               ) : (
-                                <Chip label="Completed" size="small" color="success" />
+                                <Chip label="Poora" size="small" color="success" />
                               )}
 
                               {userPhone ? (
@@ -293,7 +296,7 @@ export default function AdminDashboard() {
 
                               {userPhone ? (
                                 <MuiLink href={`tel:${userPhone}`} underline="none">
-                                  <Button size="small" variant="text">Call</Button>
+                                  <Button size="small" variant="text">Call karein</Button>
                                 </MuiLink>
                               ) : null}
                             </Stack>
@@ -304,7 +307,7 @@ export default function AdminDashboard() {
 
                     {filteredOrders.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8}>No orders found for selected filters.</TableCell>
+                        <TableCell colSpan={8}>Is filter me koi order nahi mila.</TableCell>
                       </TableRow>
                     ) : null}
                   </TableBody>
@@ -317,23 +320,23 @@ export default function AdminDashboard() {
         <Card>
           <CardContent>
             <Stack spacing={2}>
-              <Typography variant="h5">Users</Typography>
+              <Typography variant="h5">Grahak</Typography>
 
               <Box sx={{ overflowX: "auto" }}>
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Name</TableCell>
-                      <TableCell>Phone</TableCell>
-                      <TableCell>Created At</TableCell>
+                      <TableCell>Naam</TableCell>
+                      <TableCell>Mobile</TableCell>
+                      <TableCell>Banaya gaya</TableCell>
                       <TableCell>Contact</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {users.map((appUser) => {
-                      const fallbackDetails = "General support";
+                      const fallbackDetails = "Sadharan sahayata";
                       const whatsappUrl = buildWhatsAppUrl({
-                        name: appUser.name || "Customer",
+                        name: appUser.name || "Grahak",
                         phone: appUser.phone || "-",
                         service: "tailoring",
                         details: fallbackDetails,
@@ -353,7 +356,7 @@ export default function AdminDashboard() {
                               ) : null}
                               {appUser.phone ? (
                                 <MuiLink href={`tel:${appUser.phone}`} underline="none">
-                                  <Button size="small">Call</Button>
+                                  <Button size="small">Call karein</Button>
                                 </MuiLink>
                               ) : null}
                             </Stack>
@@ -364,7 +367,7 @@ export default function AdminDashboard() {
 
                     {users.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4}>No users found.</TableCell>
+                        <TableCell colSpan={4}>Koi user nahi mila.</TableCell>
                       </TableRow>
                     ) : null}
                   </TableBody>

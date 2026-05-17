@@ -9,25 +9,25 @@ import { RK_STUDIO } from "@/utils/constants";
 
 const services = [
   {
-    title: "Tailoring",
-    description: "Custom fitting aur stitching, daily se function wear tak.",
+    title: "Stitch Clothes",
+    description: "Custom tailoring for perfect fit.",
     href: "/tailoring",
     icon: ContentCutIcon,
-    buttonText: "Stitching Start Karein",
+    buttonText: "Start Order",
   },
   {
-    title: "Fabric",
-    description: "Best kapda options ke saath simple fabric guidance.",
+    title: "Buy Cloth",
+    description: "Quality cloth at fair prices.",
     href: "/fabric",
     icon: CheckroomIcon,
-    buttonText: "Fabric Dekhein",
+    buttonText: "Browse Now",
   },
   {
     title: "Dupatta",
-    description: "Ready dupatta collection for daily aur festive styling.",
+    description: "Ready designs for daily wear and events.",
     href: "/dupatta",
     icon: StyleIcon,
-    buttonText: "Dupatta Dekhein",
+    buttonText: "View All",
   },
 ];
 
@@ -52,14 +52,14 @@ export default function Home() {
                 lineHeight: 1.2,
               }}
             >
-              Silai aur kapda - ab Narnaul me ghar baithe
+              RK Studio – Stitch Clothes in Narnaul
             </Typography>
             <Typography color="text.secondary" sx={{ fontSize: { xs: "1rem", md: "1.1rem" } }}>
-              Custom tailoring, fabric selection aur ready dupatta - sab ek hi jagah.
+              Silai aur kapda – ab ghar baithe
             </Typography>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
               <Button component={Link} href="/tailoring" variant="contained" size="large">
-                Stitching Start Karein
+                Start Order
               </Button>
               <Button
                 component={Link}
@@ -69,9 +69,12 @@ export default function Home() {
                 variant="outlined"
                 size="large"
               >
-                WhatsApp par Baat Karein
+                Chat on WhatsApp
               </Button>
             </Stack>
+            <Typography variant="body2" color="text.secondary">
+              Need help? Chat with us on WhatsApp.
+            </Typography>
           </Stack>
         </Box>
 
@@ -83,12 +86,12 @@ export default function Home() {
         >
           <Chip label={RK_STUDIO.servingText} variant="outlined" sx={{ borderRadius: 1.5 }} />
           <Chip label={RK_STUDIO.homeVisitText} variant="outlined" sx={{ borderRadius: 1.5 }} />
-          <Chip label="Local trusted tailors" variant="outlined" sx={{ borderRadius: 1.5 }} />
+          <Chip label="Trusted tailors" variant="outlined" sx={{ borderRadius: 1.5 }} />
         </Stack>
 
         <Box>
           <Typography variant="h4" sx={{ mb: 2.5 }}>
-            Services
+            Our Services
           </Typography>
           <Grid container spacing={2.5}>
             {services.map((service) => {
@@ -139,9 +142,34 @@ export default function Home() {
             How It Works
           </Typography>
           <Stack spacing={1.2}>
-            <Typography>1. Service choose karein</Typography>
-            <Typography>2. Details share karein / WhatsApp par baat karein</Typography>
-            <Typography>3. Stitching complete karwayein</Typography>
+            <Typography>1. Choose your service</Typography>
+            <Typography>2. Share details or chat on WhatsApp</Typography>
+            <Typography>3. Confirm order and work starts</Typography>
+          </Stack>
+        </Box>
+
+        <Box sx={{ p: { xs: 2.5, md: 3 }, border: "1px solid", borderColor: "divider", borderRadius: 2, bgcolor: "background.paper" }}>
+          <Typography variant="h4" sx={{ mb: 2.5 }}>
+            Pricing & Information
+          </Typography>
+          <Stack spacing={2}>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Delivery Charges:</Typography>
+              <Stack spacing={1} sx={{ pl: 2 }}>
+                <Typography variant="body2">• Home delivery: ₹99</Typography>
+                <Typography variant="body2">• Pickup and delivery: ₹99</Typography>
+                <Typography variant="body2">• Self pickup: Free</Typography>
+              </Stack>
+            </Box>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Our Address:</Typography>
+              <Typography variant="body2" color="text.secondary">Radha Krishan Studio, Subhash Nagar, Narnaul</Typography>
+            </Box>
+            <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: "grey.50", borderLeft: "3px solid", borderColor: "primary.main" }}>
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                All charges are transparent. No hidden fees.
+              </Typography>
+            </Box>
           </Stack>
         </Box>
 
@@ -157,7 +185,7 @@ export default function Home() {
               size="large"
               sx={{ bgcolor: "#25D366", "&:hover": { bgcolor: "#1DAE57" } }}
             >
-              Abhi WhatsApp Karein
+              Chat on WhatsApp Now
             </Button>
           </Stack>
         </Box>

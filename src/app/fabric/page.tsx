@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { Alert, Skeleton, Snackbar, Stack, Typography } from "@mui/material";
+import { Alert, Box, Skeleton, Snackbar, Stack, Typography } from "@mui/material";
 import Grid from "@mui/material/Grid2";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -68,20 +68,32 @@ export default function FabricPage() {
         ),
       );
 
-      setNotice("Redirecting to payment...");
+      setNotice("Payment page khul rahi hai...");
       router.push(`/checkout?token=${encodeURIComponent(token)}`);
     } catch {
-      setError("Unable to continue to payment. Please try again.");
+      setError("Payment page nahi khul payi. Dobara koshish karein.");
     }
   };
 
   return (
     <Layout>
       <Stack spacing={3}>
-        <Typography variant="h3">Fabric Collection</Typography>
+        <Typography variant="h3">Buy Cloth</Typography>
         <Typography color="text.secondary">
-          Budget aur type ke hisab se kapda choose karein.
+          Find quality cloth at fair prices.
         </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Koi dikkat ho to WhatsApp karein. Hum madad ke liye yahan hain.
+        </Typography>
+
+        <Box sx={{ p: { xs: 2.5, md: 3 }, border: "1px solid", borderColor: "divider", borderRadius: 2, bgcolor: "background.paper" }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Delivery Charges:</Typography>
+          <Stack spacing={1} sx={{ pl: 2 }}>
+            <Typography variant="body2">• Home delivery: ₹99</Typography>
+            <Typography variant="body2">• Pickup and delivery: ₹99</Typography>
+            <Typography variant="body2">• Self pickup: Free</Typography>
+          </Stack>
+        </Box>
 
         {productsError ? <Alert severity="warning">{productsError}</Alert> : null}
 
@@ -107,7 +119,7 @@ export default function FabricPage() {
         ) : null}
 
         {!loading && filteredProducts.length === 0 ? (
-          <Alert severity="info">No fabric items match your current filters.</Alert>
+          <Alert severity="info">Abhi filter ke hisab se kapda nahi mila.</Alert>
         ) : null}
 
         <Snackbar

@@ -90,7 +90,7 @@ export default function UserDashboard() {
         setProfileError("");
       },
       () => {
-        setProfileError("Could not load saved fabrics.");
+        setProfileError("Saved kapda load nahi ho paya.");
       },
     );
 
@@ -129,7 +129,7 @@ export default function UserDashboard() {
       });
     } catch {
       setProfile(previousProfile);
-      setProfileError("Could not update saved fabrics.");
+      setProfileError("Saved kapda update nahi ho paya.");
     } finally {
       setRemovingFabricId("");
     }
@@ -140,12 +140,12 @@ export default function UserDashboard() {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Stack spacing={1.5}>
-            <Typography variant="h4">Dashboard</Typography>
-            <Typography color="text.secondary">Welcome to RK Studio secure area. Your live orders are shown below.</Typography>
+            <Typography variant="h4">Mera Dashboard</Typography>
+            <Typography color="text.secondary">Yahaan aapke active order aur details dikhenge.</Typography>
             <Typography>
-              Logged in phone: <strong>{user?.phoneNumber || "-"}</strong>
+              Login phone: <strong>{user?.phoneNumber || "-"}</strong>
             </Typography>
-            <Typography color="text.secondary">Serving Narnaul (123001) | Home visit available</Typography>
+            <Typography color="text.secondary">Narnaul (123001) me seva | Ghar aakar service milegi</Typography>
           </Stack>
         </CardContent>
       </Card>
@@ -155,18 +155,18 @@ export default function UserDashboard() {
           <Stack spacing={2}>
             <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1.5}>
               <Box>
-                <Typography variant="h5">Saved Fabrics</Typography>
-                <Typography color="text.secondary">Your saved RK Studio fabric choices are available here for quick access.</Typography>
+                <Typography variant="h5">Saved Kapda</Typography>
+                <Typography color="text.secondary">Aapke save kiye hue kapda options yahaan milenge.</Typography>
               </Box>
               <Button component={Link} href="/tailoring" variant="outlined">
-                Open Tailoring Picker
+                Silai picker kholein
               </Button>
             </Stack>
 
             {profileError ? <Alert severity="warning">{profileError}</Alert> : null}
 
             {savedFabricProducts.length === 0 ? (
-              <Alert severity="info">No saved fabrics yet. Save fabric options from the tailoring page to see them here.</Alert>
+              <Alert severity="info">Abhi koi saved kapda nahi hai. Silai page se save karein.</Alert>
             ) : (
               <Grid container spacing={2}>
                 {savedFabricProducts.map((product) => {
@@ -200,7 +200,7 @@ export default function UserDashboard() {
                           </Typography>
                           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                             <Button component={Link} href={tailoringHref} variant="contained" size="small">
-                              Use In Tailoring
+                              Silai me use karein
                             </Button>
                             <Button
                               component={Link}
@@ -209,7 +209,7 @@ export default function UserDashboard() {
                               size="small"
                               disabled={!comparePartner}
                             >
-                              Compare In Tailoring
+                              Silai me compare karein
                             </Button>
                             <Button
                               variant="outlined"
@@ -218,7 +218,7 @@ export default function UserDashboard() {
                               disabled={removingFabricId === product.id}
                               onClick={() => handleRemoveSavedFabric(product.id)}
                             >
-                              {removingFabricId === product.id ? "Removing..." : "Remove"}
+                              {removingFabricId === product.id ? "Hata rahe hain..." : "Hatayein"}
                             </Button>
                           </Stack>
                         </Stack>
@@ -235,7 +235,7 @@ export default function UserDashboard() {
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <Typography variant="h5">My Orders</Typography>
+            <Typography variant="h5">Mere Order</Typography>
 
             {error ? <Alert severity="error">{error}</Alert> : null}
 
@@ -246,7 +246,7 @@ export default function UserDashboard() {
             ) : null}
 
             {!loading && orders.length === 0 ? (
-              <Alert severity="info">No orders yet. Place an order from Tailoring, Fabric, or Dupatta page.</Alert>
+              <Alert severity="info">Abhi koi order nahi hai. Silai, Kapda ya Dupatta page se order karein.</Alert>
             ) : null}
 
             {!loading && orders.length > 0 ? (
@@ -255,8 +255,8 @@ export default function UserDashboard() {
                   <TableHead>
                     <TableRow>
                       <TableCell>Service</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Date</TableCell>
+                      <TableCell>Haalat</TableCell>
+                      <TableCell>Tarikh</TableCell>
                       <TableCell>Status Timeline</TableCell>
                     </TableRow>
                   </TableHead>
@@ -276,7 +276,7 @@ export default function UserDashboard() {
                                     {formatStatus(history.status)} - {formatHistoryDate(history)}
                                   </Typography>
                                 ))
-                              : <Typography variant="caption" color="text.secondary">No history</Typography>}
+                              : <Typography variant="caption" color="text.secondary">Koi history nahi</Typography>}
                           </Stack>
                         </TableCell>
                       </TableRow>

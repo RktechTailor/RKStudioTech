@@ -119,7 +119,7 @@ export default function AdminProductsManagement() {
   const [draggingImage, setDraggingImage] = useState(false);
   const [compressionInfo, setCompressionInfo] = useState("");
 
-  const submitLabel = useMemo(() => (editingId ? "Update Product" : "Add Product"), [editingId]);
+  const submitLabel = useMemo(() => (editingId ? "Product update karein" : "Product jodein"), [editingId]);
 
   const setField = (field: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -148,19 +148,19 @@ export default function AdminProductsManagement() {
 
   const validate = () => {
     if (!form.name.trim() || !form.price || !form.type.trim() || !form.image.trim() || !form.tag.trim()) {
-      return "Please fill all fields.";
+      return "Saare field bharein.";
     }
 
     if (Number.isNaN(Number(form.price)) || Number(form.price) <= 0) {
-      return "Price must be a valid positive amount.";
+      return "Sahi positive price dalein.";
     }
 
     if (Number.isNaN(Number(form.discountPercent)) || Number(form.discountPercent) < 0 || Number(form.discountPercent) > 90) {
-      return "Discount must be between 0 and 90.";
+      return "Discount 0 se 90 ke beech dalein.";
     }
 
     if (Number.isNaN(Number(form.rating)) || Number(form.rating) < 0 || Number(form.rating) > 5) {
-      return "Rating must be between 0 and 5.";
+      return "Rating 0 se 5 ke beech dalein.";
     }
 
     return "";
@@ -190,15 +190,15 @@ export default function AdminProductsManagement() {
 
       if (editingId) {
         await trackAsync(updateProduct(editingId, payload));
-        setNotice("Product updated.");
+        setNotice("Product update ho gaya.");
       } else {
         await trackAsync(addProduct(payload));
-        setNotice("Product added.");
+        setNotice("Product add ho gaya.");
       }
 
       resetForm();
     } catch {
-      setError("Could not save product. Check Firebase configuration.");
+      setError("Product save nahi hua. Firebase setup check karein.");
     } finally {
       setSaving(false);
     }
@@ -206,12 +206,12 @@ export default function AdminProductsManagement() {
 
   const processSelectedImage = async (file: File) => {
     if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
-      setError(`Please upload an image smaller than ${MAX_UPLOAD_MB}MB.`);
+      setError(`${MAX_UPLOAD_MB}MB se chhoti image upload karein.`);
       return;
     }
 
     if (!file.type.startsWith("image/")) {
-      setError("Please upload a valid image file.");
+      setError("Sahi image file upload karein.");
       return;
     }
 
@@ -230,16 +230,16 @@ export default function AdminProductsManagement() {
       if (compressed.size < file.size) {
         const fromKb = Math.round(file.size / 1024);
         const toKb = Math.round(compressed.size / 1024);
-        setCompressionInfo(`Compressed from ${fromKb}KB to ${toKb}KB before upload.`);
+        setCompressionInfo(`Upload se pehle image ${fromKb}KB se ${toKb}KB ki gayi.`);
       } else {
-        setCompressionInfo("Image kept at original quality.");
+        setCompressionInfo("Image original quality me rakhi gayi.");
       }
 
       const uploadedUrl = await trackAsync(uploadProductImage(compressed));
       setField("image", uploadedUrl);
-      setNotice("Image uploaded successfully.");
+      setNotice("Image upload ho gayi.");
     } catch {
-      setError("Image upload failed. Check Firebase Storage setup.");
+      setError("Image upload fail hui. Firebase Storage setup check karein.");
       setImagePreview("");
       setCompressionInfo("");
     } finally {
@@ -297,12 +297,12 @@ export default function AdminProductsManagement() {
 
     try {
       await trackAsync(removeProduct(id));
-      setNotice("Product deleted.");
+      setNotice("Product delete ho gaya.");
       if (editingId === id) {
         resetForm();
       }
     } catch {
-      setError("Could not delete product.");
+      setError("Product delete nahi hua.");
     }
   };
 
@@ -316,7 +316,7 @@ export default function AdminProductsManagement() {
                 <RKStudioLogo size={34} variant="full" />
                 <Stack spacing={0.35}>
                   <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
-                    <Typography variant="h4">Admin Product Management</Typography>
+                    <Typography variant="h4">Product Prabandhan</Typography>
                     <Box
                       sx={{
                         px: 1.2,
@@ -329,14 +329,14 @@ export default function AdminProductsManagement() {
                         border: `1px solid ${alpha("#93C5FD", 0.48)}`,
                       }}
                     >
-                      Brand Catalog Studio
+                      Catalog Kendra
                     </Box>
                   </Stack>
-                  <Typography color="text.secondary">Add and manage fabric/dupatta products from Firestore.</Typography>
+                  <Typography color="text.secondary">Yahaan se kapda aur dupatta product manage karein.</Typography>
                 </Stack>
               </Stack>
               <Typography variant="body2" color="text.secondary">
-                Upload your real RK Studio product photos here. The image will be compressed, uploaded to Firebase Storage, and linked automatically.
+                Yahin image upload karein. Image compress hoke Firebase Storage me save ho jayegi.
               </Typography>
             </Stack>
           </CardContent>
@@ -349,10 +349,10 @@ export default function AdminProductsManagement() {
         <Card>
           <CardContent>
             <Stack spacing={2}>
-              <Typography variant="h5">Add Product</Typography>
+              <Typography variant="h5">Product jodein</Typography>
 
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                <TextField label="Name" value={form.name} onChange={(e) => setField("name", e.target.value)} fullWidth />
+                <TextField label="Naam" value={form.name} onChange={(e) => setField("name", e.target.value)} fullWidth />
                 <TextField label="Price (INR)" type="number" value={form.price} onChange={(e) => setField("price", e.target.value)} fullWidth />
               </Stack>
 
@@ -395,17 +395,17 @@ export default function AdminProductsManagement() {
                   >
                     <CloudUploadOutlinedIcon color={draggingImage ? "primary" : "action"} />
                     <Typography variant="body2" color="text.secondary">
-                      {uploadingImage ? "Uploading image..." : "Drag and drop an image here or click to browse"}
+                      {uploadingImage ? "Image upload ho rahi hai..." : "Image yahan drop karein ya click karke chune"}
                     </Typography>
                     <input hidden type="file" accept="image/*" onChange={handleImageFileChange} />
                   </Box>
                   <Typography variant="caption" color="text.secondary">
-                    Best results: portrait product photo, under 8MB, clear fabric/dupatta close-up.
+                    Best result: clear product photo, 8MB se chhoti image.
                   </Typography>
                   {uploadingImage ? (
                     <Stack direction="row" alignItems="center" spacing={1}>
                       <CircularProgress size={18} />
-                      <Typography variant="body2" color="text.secondary">Uploading to Firebase Storage...</Typography>
+                      <Typography variant="body2" color="text.secondary">Firebase Storage me upload ho rahi hai...</Typography>
                     </Stack>
                   ) : null}
                   {compressionInfo ? (
@@ -413,7 +413,7 @@ export default function AdminProductsManagement() {
                   ) : null}
                   {form.image ? (
                     <Typography variant="caption" color="text.secondary" sx={{ wordBreak: "break-all" }}>
-                      Stored URL: {form.image}
+                      URL: {form.image}
                     </Typography>
                   ) : null}
                 </Stack>
@@ -429,11 +429,11 @@ export default function AdminProductsManagement() {
                   />
                   <Stack direction="row" spacing={1}>
                     <Button variant="outlined" component="label" size="small" disabled={uploadingImage}>
-                      Replace image
+                      Image badlein
                       <input hidden type="file" accept="image/*" onChange={handleImageFileChange} />
                     </Button>
                     <Button variant="text" color="error" size="small" onClick={clearSelectedImage} disabled={uploadingImage}>
-                      Remove image
+                      Image hataein
                     </Button>
                   </Stack>
                 </Stack>
@@ -441,10 +441,10 @@ export default function AdminProductsManagement() {
 
               <Stack direction="row" spacing={1}>
                 <Button variant="contained" onClick={handleSubmit} disabled={saving || uploadingImage}>
-                  {saving ? "Saving..." : submitLabel}
+                  {saving ? "Save ho raha hai..." : submitLabel}
                 </Button>
                 {editingId ? (
-                  <Button variant="outlined" onClick={resetForm}>Cancel Edit</Button>
+                  <Button variant="outlined" onClick={resetForm}>Edit band karein</Button>
                 ) : null}
               </Stack>
             </Stack>
@@ -456,10 +456,10 @@ export default function AdminProductsManagement() {
             <Stack spacing={2}>
               <Stack direction="row" spacing={1} alignItems="center">
                 <PhotoLibraryOutlinedIcon color="primary" />
-                <Typography variant="h5">Quick Product Gallery</Typography>
+                <Typography variant="h5">Product Gallery</Typography>
               </Stack>
               <Typography variant="body2" color="text.secondary">
-                Use this gallery to quickly scan products and jump into edit mode for image replacement or pricing updates.
+                Product ko jaldi dekhein aur edit mode me kholein.
               </Typography>
 
               <Grid container spacing={2}>
@@ -481,7 +481,7 @@ export default function AdminProductsManagement() {
                             {product.category} | {product.type}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            Discount: {product.discountPercent || 0}% | Rating: {(product.rating || 0).toFixed(1)}
+                            Chhut: {product.discountPercent || 0}% | Rating: {(product.rating || 0).toFixed(1)}
                           </Typography>
                           <Button
                             variant="outlined"
@@ -489,7 +489,7 @@ export default function AdminProductsManagement() {
                             startIcon={<EditOutlinedIcon />}
                             onClick={() => handleEdit(product)}
                           >
-                            Edit This Product
+                            Is product ko edit karein
                           </Button>
                         </Stack>
                       </CardContent>
@@ -499,7 +499,7 @@ export default function AdminProductsManagement() {
 
                 {!loading && products.length === 0 ? (
                   <Grid size={{ xs: 12 }}>
-                    <Alert severity="info">No products available in the gallery yet.</Alert>
+                    <Alert severity="info">Gallery me abhi koi product nahi hai.</Alert>
                   </Grid>
                 ) : null}
               </Grid>
@@ -510,20 +510,20 @@ export default function AdminProductsManagement() {
         <Card>
           <CardContent>
             <Stack spacing={2}>
-              <Typography variant="h5">Products</Typography>
+              <Typography variant="h5">Product Suchi</Typography>
 
               <Box sx={{ overflowX: "auto" }}>
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Name</TableCell>
-                      <TableCell>Price</TableCell>
-                      <TableCell>Discount</TableCell>
+                      <TableCell>Naam</TableCell>
+                      <TableCell>Daam</TableCell>
+                      <TableCell>Chhut</TableCell>
                       <TableCell>Rating</TableCell>
                       <TableCell>Type</TableCell>
-                      <TableCell>Category</TableCell>
-                      <TableCell>Tag</TableCell>
-                      <TableCell>Actions</TableCell>
+                      <TableCell>Shreni</TableCell>
+                      <TableCell>Label</TableCell>
+                      <TableCell>Karya</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -538,8 +538,8 @@ export default function AdminProductsManagement() {
                         <TableCell>{product.tag}</TableCell>
                         <TableCell>
                           <Stack direction="row" spacing={1}>
-                            <Button size="small" variant="outlined" onClick={() => handleEdit(product)}>Edit</Button>
-                            <Button size="small" color="error" onClick={() => handleDelete(product.id)}>Delete</Button>
+                            <Button size="small" variant="outlined" onClick={() => handleEdit(product)}>Edit karein</Button>
+                            <Button size="small" color="error" onClick={() => handleDelete(product.id)}>Delete karein</Button>
                           </Stack>
                         </TableCell>
                       </TableRow>
@@ -547,7 +547,7 @@ export default function AdminProductsManagement() {
 
                     {!loading && products.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8}>No products found.</TableCell>
+                        <TableCell colSpan={8}>Koi product nahi mila.</TableCell>
                       </TableRow>
                     ) : null}
                   </TableBody>

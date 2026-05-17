@@ -26,7 +26,7 @@ const theme = createTheme({
   },
   spacing: 8,
   typography: {
-    fontFamily: "'Poppins', 'Nunito Sans', 'Segoe UI', sans-serif",
+    fontFamily: "'Poppins', 'Inter', 'Segoe UI', sans-serif",
     h1: {
       fontWeight: 700,
       lineHeight: 1.2,
@@ -50,6 +50,16 @@ const theme = createTheme({
     button: {
       textTransform: "none",
       fontWeight: 600,
+    },
+    body1: {
+      fontSize: "1rem",
+      lineHeight: 1.55,
+      fontWeight: 500,
+    },
+    body2: {
+      fontSize: "0.95rem",
+      lineHeight: 1.5,
+      fontWeight: 500,
     },
   },
   components: {

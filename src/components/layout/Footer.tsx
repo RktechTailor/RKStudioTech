@@ -1,4 +1,5 @@
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
+import LocationOnIcon from "@mui/icons-material/LocationOn";
 import { alpha, Box, Button, Container, Divider, Stack, Typography } from "@mui/material";
 import Grid from "@mui/material/Grid2";
 import RKStudioLogo from "@/components/common/RKStudioLogo";
@@ -12,21 +13,22 @@ export default function Footer() {
       component="footer"
       sx={{
         borderTop: `1px solid ${alpha("#CBD5E1", 0.55)}`,
-        py: 3,
+        py: 4,
         mt: 6,
         background: "#FFFFFF",
       }}
     >
       <Container maxWidth="lg">
-        <Grid container spacing={2} alignItems="center" sx={{ mb: 1 }}>
-          <Grid size={{ xs: 12, md: 4 }}>
+        <Grid container spacing={3} alignItems="flex-start" sx={{ mb: 2 }}>
+          <Grid size={{ xs: 12, md: 3 }}>
             <Stack direction="row" spacing={1} alignItems="center">
-              <RKStudioLogo size={30} variant="full" />
+              <RKStudioLogo size={40} variant="full" />
             </Stack>
           </Grid>
 
-          <Grid size={{ xs: 12, md: 4 }}>
-            <Stack alignItems={{ xs: "flex-start", md: "center" }}>
+          <Grid size={{ xs: 12, md: 3 }}>
+            <Stack spacing={1}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.95rem" }}>Contact Us</Typography>
               <Button
                 component="a"
                 href={whatsappLink}
@@ -40,6 +42,7 @@ export default function Footer() {
                   color: "#FFFFFF",
                   bgcolor: "#25D366",
                   boxShadow: "none",
+                  justifyContent: "flex-start",
                   "&:hover": {
                     bgcolor: "#1FB85A",
                   },
@@ -50,20 +53,37 @@ export default function Footer() {
             </Stack>
           </Grid>
 
-          <Grid size={{ xs: 12, md: 4 }}>
-            <Stack alignItems={{ xs: "flex-start", md: "flex-end" }}>
-              <Typography color="text.secondary">Serving Narnaul (123001)</Typography>
+          <Grid size={{ xs: 12, md: 3 }}>
+            <Stack spacing={1}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 0.7, fontSize: "0.95rem" }}>
+                <LocationOnIcon sx={{ fontSize: 18 }} />
+                Address
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+                Radha Krishan Studio<br />
+                Subhash Nagar, Narnaul<br />
+                (123001)
+              </Typography>
+            </Stack>
+          </Grid>
+
+          <Grid size={{ xs: 12, md: 3 }}>
+            <Stack spacing={1}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.95rem" }}>Service Area</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Serving Narnaul area
+              </Typography>
             </Stack>
           </Grid>
         </Grid>
 
-        <Divider sx={{ my: 2 }} />
+        <Divider sx={{ my: 2.5 }} />
 
         <Stack spacing={1}>
           <Typography variant="body2" color="text.secondary">
             © 2026 RK Studio. All rights reserved.
           </Typography>
-          <Typography variant="caption" color="text.secondary">Secure support via WhatsApp</Typography>
+          <Typography variant="caption" color="text.secondary">Need help? Chat with us on WhatsApp.</Typography>
         </Stack>
       </Container>
     </Box>

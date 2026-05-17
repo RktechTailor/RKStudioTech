@@ -43,7 +43,7 @@ export default function CategoryCard({ title, description, image, href }: Catego
         <Typography color="text.secondary" mb={2}>
           {description}
         </Typography>
-        <Chip label="Explore now" color="primary" variant="outlined" />
+        <Chip label="Dekhe" color="primary" variant="outlined" />
       </CardContent>
     </Card>
   );

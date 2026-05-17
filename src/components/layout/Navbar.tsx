@@ -28,8 +28,8 @@ import { isAdminUser } from "@/utils/admin";
 
 const navLinks = [
   { label: "Home", href: "/" },
-  { label: "Tailoring", href: "/tailoring" },
-  { label: "Fabric", href: "/fabric" },
+  { label: "Stitch", href: "/tailoring" },
+  { label: "Cloth", href: "/fabric" },
   { label: "Dupatta", href: "/dupatta" },
 ];
 
@@ -48,7 +48,7 @@ export default function Navbar() {
     if (user) {
       links.push({ label: "Profile", href: "/dashboard" });
       if (isAdmin) {
-        links.push({ label: "Admin Dashboard", href: "/admin" });
+        links.push({ label: "Admin Panel", href: "/admin" });
         links.push({ label: "Manage Products", href: "/admin/products" });
       }
     } else {
@@ -101,15 +101,15 @@ export default function Navbar() {
           width: "100%",
           mx: "auto",
           px: { xs: 1.5, md: 2.5 },
-          minHeight: 74,
+          minHeight: { xs: 80, md: 84 },
           display: "grid",
-          gridTemplateColumns: { xs: "1fr auto", md: "1fr auto 1fr" },
+          gridTemplateColumns: { xs: "1fr auto", md: "auto 1fr auto" },
           alignItems: "center",
-          gap: 1,
+          gap: { xs: 1.5, md: 2 },
         }}
       >
-        <Box component={Link} href="/" sx={{ textDecoration: "none", color: "inherit", minWidth: 0, justifySelf: "start" }}>
-          <RKStudioLogo size={34} variant="full" />
+        <Box component={Link} href="/" sx={{ textDecoration: "none", color: "inherit", minWidth: 0, justifySelf: "start", display: "flex", alignItems: "center" }}>
+          <RKStudioLogo size={48} variant="full" />
         </Box>
 
         <Stack
@@ -118,7 +118,9 @@ export default function Navbar() {
           sx={{
             display: { xs: "none", md: "flex" },
             alignItems: "center",
+            justifyContent: "center",
             justifySelf: "center",
+            minWidth: 0,
           }}
         >
           {navLinks.map((link) => (
@@ -132,6 +134,7 @@ export default function Navbar() {
                 borderRadius: 999,
                 px: 1.55,
                 py: 0.72,
+                whiteSpace: "nowrap",
                 color: pathname === link.href ? "primary.main" : "text.primary",
                 backgroundColor: pathname === link.href ? alpha("#DBEAFE", 0.95) : "transparent",
                 border: `1px solid ${pathname === link.href ? alpha("#93C5FD", 0.65) : "transparent"}`,
@@ -149,7 +152,7 @@ export default function Navbar() {
         <Stack
           direction="row"
           spacing={1}
-          sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", justifySelf: "end" }}
+          sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", justifySelf: "end", flexWrap: "nowrap" }}
         >
           <Button
             component="a"
@@ -161,6 +164,8 @@ export default function Navbar() {
               borderRadius: 999,
               px: 1.6,
               py: 0.72,
+              whiteSpace: "nowrap",
+              minWidth: "fit-content",
               color: "#166534",
               bgcolor: alpha("#DCFCE7", 0.92),
               border: `1px solid ${alpha("#86EFAC", 0.86)}`,
@@ -169,7 +174,7 @@ export default function Navbar() {
               },
             }}
           >
-            WhatsApp
+            WhatsApp pe baat karein
           </Button>
           {user ? (
             <>
@@ -180,6 +185,8 @@ export default function Navbar() {
                   borderRadius: 999,
                   px: 1.6,
                   py: 0.72,
+                  whiteSpace: "nowrap",
+                  minWidth: "fit-content",
                   color: "text.primary",
                   bgcolor: alpha("#FFFFFF", 0.96),
                   border: `1px solid ${alpha("#CBD5E1", 0.85)}`,
@@ -211,7 +218,7 @@ export default function Navbar() {
                 {isAdmin ? (
                   <MenuItem component={Link} href="/admin" onClick={handleProfileMenuClose}>
                     <AdminPanelSettingsOutlinedIcon sx={{ mr: 1.25, fontSize: 18 }} />
-                    Admin Dashboard
+                    Admin Panel
                   </MenuItem>
                 ) : null}
                 {isAdmin ? (
@@ -241,6 +248,8 @@ export default function Navbar() {
                 borderRadius: 999,
                 px: 1.6,
                 py: 0.72,
+                whiteSpace: "nowrap",
+                minWidth: "fit-content",
                 color: "primary.main",
                 bgcolor: alpha("#EFF6FF", 0.95),
                 border: `1px solid ${alpha("#BFDBFE", 0.9)}`,
@@ -249,7 +258,7 @@ export default function Navbar() {
                 },
               }}
             >
-              Login
+              Login karein
             </Button>
           )}
         </Stack>
@@ -263,7 +272,7 @@ export default function Navbar() {
             justifySelf: "end",
           }}
           onClick={() => setOpen(true)}
-          aria-label="Open menu"
+          aria-label="Menu kholein"
         >
           <MenuIcon />
         </IconButton>
@@ -298,7 +307,7 @@ export default function Navbar() {
               border: `1px solid ${alpha("#86EFAC", 0.84)}`,
             }}
           >
-            Chat on WhatsApp
+            WhatsApp pe baat karein
           </Button>
           <Divider />
           {mobileLinks.map((link) => (
@@ -329,7 +338,7 @@ export default function Navbar() {
               startIcon={<LogoutRoundedIcon />}
               sx={{ justifyContent: "flex-start", borderRadius: 999 }}
             >
-              Logout
+              Bahar niklein
             </Button>
           ) : null}
         </Stack>

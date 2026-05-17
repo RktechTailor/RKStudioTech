@@ -60,14 +60,14 @@ export default function LoginPage() {
     setSuccess("");
 
     if (!name.trim()) {
-      setError("Please enter your name.");
+      setError("Apna naam dalein.");
       return;
     }
 
     const formattedPhone = normalizeIndianPhone(phone);
 
     if (!formattedPhone.startsWith("+") || formattedPhone.length < 13) {
-      setError("Please enter a valid Indian phone number.");
+      setError("Sahi Indian phone number dalein.");
       return;
     }
 
@@ -76,7 +76,7 @@ export default function LoginPage() {
       if (useMockOtp) {
         setPhone(formattedPhone);
         setOtpSent(true);
-        setSuccess(`Mock OTP sent. Use ${MOCK_OTP} for quick testing.`);
+        setSuccess(`Mock OTP bhej diya gaya hai. Testing ke liye ${MOCK_OTP} use karein.`);
         return;
       }
 
@@ -84,7 +84,7 @@ export default function LoginPage() {
       setPhone(formattedPhone);
       setOtpSent(true);
     } catch {
-      setError("OTP send failed. Check number or Firebase setup.");
+      setError("OTP bhejne me dikkat aayi. Number ya Firebase setup check karein.");
     } finally {
       setBusy(false);
     }
@@ -95,12 +95,12 @@ export default function LoginPage() {
     setSuccess("");
 
     if (!useMockOtp && !confirmationResultRef.current) {
-      setError("Please send OTP first.");
+      setError("Pehle OTP bhejein.");
       return;
     }
 
     if (!otp) {
-      setError("Please enter OTP.");
+      setError("OTP dalein.");
       return;
     }
 
@@ -109,26 +109,26 @@ export default function LoginPage() {
 
       if (useMockOtp) {
         if (!verifyMockOtp(otp)) {
-          setError("Invalid OTP. Try 1234.");
+          setError("Galat OTP. 1234 try karein.");
           return;
         }
 
         if (role === "admin" && !isAdminPhone(phone)) {
-          setError("Admin access is allowed only for the configured admin phone number.");
+          setError("Admin access sirf set kiye hue admin number par milega.");
           return;
         }
 
         const mockUser = createMockUser(name, phone, role);
         setMockSession(mockUser);
         await trackAsync(saveMockUserToFirestore(mockUser));
-        setSuccess("Logged in with mock OTP.");
+        setSuccess("Mock OTP se login ho gaya.");
       } else {
         await trackAsync(verifyOtpAndSaveUser(confirmationResultRef.current as ConfirmationResult, otp, name, phone));
       }
 
       router.replace(role === "admin" ? "/admin" : "/");
     } catch {
-      setError("OTP verification failed. Please try again.");
+      setError("OTP verify nahi hua. Dobara koshish karein.");
     } finally {
       setBusy(false);
     }
@@ -161,12 +161,12 @@ export default function LoginPage() {
                           WebkitTextFillColor: "transparent",
                         }}
                       >
-                        Login to RK Studio
+                        RK Studio me login karein
                       </Typography>
-                      <Chip size="small" label="Premium Access" color="secondary" />
+                      <Chip size="small" label="Surakshit" color="secondary" />
                     </Stack>
                     <Typography color="text.secondary">
-                      Enter the RK Studio space for tailoring orders, saved fabrics, and premium client support.
+                      Login karke silai order, saved kapda aur support asaani se paayein.
                     </Typography>
                   </Stack>
                 </Stack>
@@ -183,12 +183,12 @@ export default function LoginPage() {
                 color="primary"
                 fullWidth
               >
-                <ToggleButton value="user">User</ToggleButton>
+                <ToggleButton value="user">Customer</ToggleButton>
                 <ToggleButton value="admin">Admin</ToggleButton>
               </ToggleButtonGroup>
 
               <TextField
-                label="Name"
+                label="Naam"
                 placeholder="Aapka naam"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
@@ -196,7 +196,7 @@ export default function LoginPage() {
               />
 
               <TextField
-                label="Phone number"
+                label="Phone"
                 placeholder="9876543210"
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
@@ -206,7 +206,7 @@ export default function LoginPage() {
               {otpSent ? (
                 <TextField
                   label="OTP"
-                  placeholder={useMockOtp ? "Enter 1234" : "6-digit code"}
+                  placeholder={useMockOtp ? "1234 dalein" : "6-digit code dalein"}
                   value={otp}
                   onChange={(event) => setOtp(event.target.value)}
                 />
@@ -217,23 +217,27 @@ export default function LoginPage() {
 
               {!useMockOtp && !isFirebaseConfigured ? (
                 <Alert severity="warning">
-                  Firebase env vars missing. Add NEXT_PUBLIC_FIREBASE_* values to enable OTP login.
+                  Firebase env vars missing hain. OTP login ke liye NEXT_PUBLIC_FIREBASE_* values add karein.
                 </Alert>
               ) : null}
 
               {useMockOtp ? (
                 <Alert severity="info">
-                  Mock OTP mode active for testing. Default OTP: {MOCK_OTP}
+                  Testing ke liye Mock OTP mode chalu hai. Default OTP: {MOCK_OTP}
                 </Alert>
               ) : null}
 
+              <Typography variant="caption" color="text.secondary">
+                Koi dikkat ho to WhatsApp karein. Hum madad ke liye yahan hain.
+              </Typography>
+
               {!otpSent ? (
                 <Button variant="contained" onClick={handleSendOtp} disabled={busy || (!useMockOtp && !isFirebaseConfigured)}>
-                  {busy ? "Sending..." : "Send OTP"}
+                  {busy ? "Bheja ja raha hai..." : "OTP bhejein"}
                 </Button>
               ) : (
                 <Button variant="contained" onClick={handleVerifyOtp} disabled={busy || (!useMockOtp && !isFirebaseConfigured)}>
-                  {busy ? "Verifying..." : "Verify OTP"}
+                  {busy ? "Verify ho raha hai..." : "OTP verify karein"}
                 </Button>
               )}
 

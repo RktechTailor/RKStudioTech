@@ -35,7 +35,7 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (!token) {
-      setError("Payment session not found. Please start order again.");
+      setError("Payment session nahi mili. Dobara order shuru karein.");
       setLoading(false);
       return;
     }
@@ -43,7 +43,7 @@ export default function CheckoutPage() {
     const pending = readPendingPaymentOrder(token);
 
     if (!pending) {
-      setError("Payment session expired. Please start order again.");
+      setError("Payment session expire ho gayi. Dobara order shuru karein.");
       setLoading(false);
       return;
     }
@@ -82,12 +82,12 @@ export default function CheckoutPage() {
       return "";
     }
 
-    return pendingOrder.paymentType === "advance" ? "Advance Paid" : "Full Paid";
+    return pendingOrder.paymentType === "advance" ? "Advance De Diya" : "Pura De Diya";
   }, [pendingOrder]);
 
   const validateAmount = () => {
     if (!pendingOrder) {
-      return "Payment session missing.";
+      return "Payment session missing hai.";
     }
 
     if (pendingOrder.service === "tailoring") {
@@ -95,12 +95,12 @@ export default function CheckoutPage() {
         selectedAdvanceAmount < RK_STUDIO.payment.tailoringAdvanceMin ||
         selectedAdvanceAmount > RK_STUDIO.payment.tailoringAdvanceMax
       ) {
-        return `Advance amount must be between INR ${RK_STUDIO.payment.tailoringAdvanceMin} and INR ${RK_STUDIO.payment.tailoringAdvanceMax}.`;
+        return `Advance ₹${RK_STUDIO.payment.tailoringAdvanceMin} se ₹${RK_STUDIO.payment.tailoringAdvanceMax} ke beech hona chahiye.`;
       }
     }
 
     if (pendingOrder.service === "fabric" && finalAmount !== pendingOrder.amount) {
-      return "Invalid amount for fabric order.";
+      return "Kapda ke daam galat hain.";
     }
 
     return "";
@@ -124,7 +124,7 @@ export default function CheckoutPage() {
 
     const whatsappDetails = [...pendingOrder.whatsappDetails, `Payment: ${paymentLabel} (INR ${finalAmount})`];
 
-    setSuccess("Payment successful. We will contact you on WhatsApp");
+    setSuccess("Payment safal ho gayi. Hum WhatsApp par contact karenge.");
     setOrderConfirmed(true);
     clearPendingPaymentOrder(token);
 
@@ -150,7 +150,7 @@ export default function CheckoutPage() {
     }
 
     if (!pendingOrder) {
-      setError("Payment session missing.");
+      setError("Payment session missing hai.");
       return;
     }
 
@@ -160,7 +160,7 @@ export default function CheckoutPage() {
       if (paymentMethod === "razorpay") {
         const razorpayPayment = await startRazorpayPayment({
           amount: finalAmount,
-          description: `${pendingOrder.service === "tailoring" ? "Tailoring advance" : "Fabric full payment"} - RK Studio`,
+          description: `${pendingOrder.service === "tailoring" ? "Silai advance" : "Kapda full payment"} - RK Studio`,
           customerName: pendingOrder.customerName,
           customerPhone: pendingOrder.customerPhone,
         });
@@ -183,7 +183,7 @@ export default function CheckoutPage() {
         };
 
         if (!verifyResponse.ok || !verifyPayload.verified) {
-          throw new Error(verifyPayload.error || "Payment verification failed. Please retry payment.");
+          throw new Error(verifyPayload.error || "Payment verify nahi ho payi. Dobara payment karein.");
         }
 
         await handleFinalizeOrder(razorpayPayment.razorpay_payment_id);
@@ -197,18 +197,18 @@ export default function CheckoutPage() {
         });
         window.location.href = upiLink;
         setUpiStarted(true);
-        setError("After completing UPI payment, enter UTR/reference and click Pay & Confirm Order again.");
+        setError("UPI payment ke baad UTR/reference dalein aur fir se Confirm karein.");
         return;
       }
 
       if (!upiReference.trim()) {
-        setError("Enter UPI UTR/reference number to confirm payment.");
+        setError("Payment confirm karne ke liye UPI UTR/reference dalein.");
         return;
       }
 
       await handleFinalizeOrder(`upi-${upiReference.trim()}`);
     } catch (paymentError) {
-      const message = paymentError instanceof Error ? paymentError.message : "Payment failed. Please retry.";
+      const message = paymentError instanceof Error ? paymentError.message : "Payment fail ho gayi. Dobara koshish karein.";
       setError(message);
     } finally {
       setSubmitting(false);
@@ -221,10 +221,10 @@ export default function CheckoutPage() {
     }
 
     if (pendingOrder.service === "tailoring") {
-      return "₹100 advance required to confirm tailoring order";
+      return "Silai order confirm karne ke liye advance de";
     }
 
-    return "Full payment required to confirm order";
+    return "Order confirm karne ke liye full payment de";
   };
 
   if (loading) {
@@ -232,7 +232,7 @@ export default function CheckoutPage() {
       <Layout>
         <Stack alignItems="center" py={10} spacing={1.5}>
           <CircularProgress />
-          <Typography color="text.secondary">Preparing payment...</Typography>
+          <Typography color="text.secondary">Payment taiyar ho rahi hai...</Typography>
         </Stack>
       </Layout>
     );
@@ -241,7 +241,7 @@ export default function CheckoutPage() {
   return (
     <Layout>
       <Stack spacing={3}>
-        <Typography variant="h3">Payment</Typography>
+        <Typography variant="h3">Payment karein</Typography>
 
         <Card>
           <CardContent>
@@ -251,7 +251,7 @@ export default function CheckoutPage() {
               {pendingOrder?.service === "tailoring" ? (
                 <FormControl>
                   <Typography variant="body2" color="text.secondary" mb={1}>
-                    Select advance amount (configurable):
+                    Advance amount chune:
                   </Typography>
                   <RadioGroup
                     value={selectedAdvanceAmount}
@@ -274,15 +274,15 @@ export default function CheckoutPage() {
               <Divider />
 
               <Stack spacing={1}>
-                <Typography variant="subtitle1">Order Summary</Typography>
+                <Typography variant="subtitle1">Order ki jankari</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Service: {pendingOrder?.service === "tailoring" ? "Tailoring" : "Fabric"}
+                  Service: {pendingOrder?.service === "tailoring" ? "Silai" : "Kapda"}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Payment Type: {pendingOrder?.paymentType === "advance" ? "Advance" : "Full"}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Amount to Pay: INR {finalAmount}
+                  Dene wali rakam: INR {finalAmount}
                 </Typography>
               </Stack>
 
@@ -290,7 +290,7 @@ export default function CheckoutPage() {
 
               <FormControl>
                 <Typography variant="body2" color="text.secondary" mb={1}>
-                  Payment Method
+                  Payment ka tareeka
                 </Typography>
                 <RadioGroup
                   value={paymentMethod}
@@ -299,16 +299,16 @@ export default function CheckoutPage() {
                   <FormControlLabel
                     value="razorpay"
                     control={<Radio />}
-                    label="Razorpay (Recommended)"
+                    label="Razorpay (best)"
                     disabled={!razorpayEnabled}
                   />
-                  <FormControlLabel value="upi" control={<Radio />} label="UPI link" />
+                  <FormControlLabel value="upi" control={<Radio />} label="UPI" />
                 </RadioGroup>
               </FormControl>
 
               {!razorpayEnabled ? (
                 <Alert severity="info">
-                  Razorpay key is not configured in local environment. UPI mode is enabled for now.
+                  Razorpay abhi setup nahi hai. Filhal UPI mode chalu hai.
                 </Alert>
               ) : null}
 
@@ -326,15 +326,19 @@ export default function CheckoutPage() {
                 </Box>
               ) : null}
 
+              <Typography variant="caption" color="text.secondary">
+                Koi dikkat ho to WhatsApp karein. Hum madad ke liye yahan hain.
+              </Typography>
+
               {success ? <Alert severity="success">{success}</Alert> : null}
               {error ? <Alert severity="error">{error}</Alert> : null}
 
               <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
                 <Button variant="outlined" onClick={() => router.back()} disabled={submitting}>
-                  Back
+                  Peeche
                 </Button>
                 <Button variant="contained" onClick={handlePayAndConfirm} disabled={submitting || orderConfirmed}>
-                  {submitting ? "Processing..." : "Pay & Confirm Order"}
+                  {submitting ? "Process ho raha hai..." : "Pay aur Confirm karein"}
                 </Button>
                 {success && whatsappUrl ? (
                   <Button
@@ -342,7 +346,7 @@ export default function CheckoutPage() {
                     color="success"
                     onClick={() => window.open(whatsappUrl, "_blank", "noopener,noreferrer")}
                   >
-                    Retry WhatsApp
+                    WhatsApp dobara kholein
                   </Button>
                 ) : null}
               </Stack>

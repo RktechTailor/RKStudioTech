@@ -19,7 +19,7 @@ function ProductCardComponent({
   product,
   onAddToCart,
   showSuggestion = false,
-  actionLabel = "Add to cart",
+  actionLabel = "Order",
 }: ProductCardProps) {
   const discountPercent = product.discountPercent || 0;
   const discountedPrice = discountPercent > 0
@@ -59,10 +59,10 @@ function ProductCardComponent({
       <CardContent sx={{ flexGrow: 1 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="start" gap={1}>
           <Typography variant="h6">{product.name}</Typography>
-          <Chip label={product.inStock === false ? "Out of stock" : "In stock"} color={product.inStock === false ? "default" : "success"} size="small" />
+          <Chip label={product.inStock === false ? "Nahi hai" : "Hai"} color={product.inStock === false ? "default" : "success"} size="small" />
         </Stack>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          {product.description || `${product.tag || "Daily wear"} ${product.type} product.`}
+          {product.description || `${product.tag || "Roz ke liye"} ${product.type}.`}
         </Typography>
         <Stack direction="row" alignItems="center" spacing={0.7} sx={{ mt: 1.6 }}>
           <Rating
@@ -89,14 +89,14 @@ function ProductCardComponent({
         </Stack>
         {discountPercent > 0 ? (
           <Typography variant="caption" sx={{ display: "block", mt: 0.6, color: "secondary.main", fontWeight: 700 }}>
-            You save {formatINR(savingsAmount)}
+            Bachche: {formatINR(savingsAmount)}
           </Typography>
         ) : null}
 
         {showSuggestion && product.suggestion ? (
           <Box sx={{ mt: 2, p: 1.2, borderRadius: 1.5, backgroundColor: "#FFF7ED" }}>
             <Typography variant="caption" sx={{ color: "secondary.main", fontWeight: 600 }}>
-              Match with kurti: {product.suggestion}
+              Sari ke saath mil jayegi: {product.suggestion}
             </Typography>
           </Box>
         ) : null}

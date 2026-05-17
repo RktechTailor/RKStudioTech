@@ -1,4 +1,4 @@
-import { OrderServiceType } from "@/services/orderService";
+import type { OrderServiceType } from "@/services/orderService";
 import { RK_STUDIO } from "@/utils/constants";
 
 type SendToWhatsAppInput = {
