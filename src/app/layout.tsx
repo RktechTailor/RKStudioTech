@@ -4,6 +4,7 @@ import { AppRouterCacheProvider } from "@mui/material-nextjs/v15-appRouter";
 import { CssBaseline, ThemeProvider } from "@mui/material";
 import Footer from "@/components/layout/Footer";
 import Navbar from "@/components/layout/Navbar";
+import FirebaseAnalyticsBootstrap from "@/components/common/FirebaseAnalyticsBootstrap";
 import WhatsAppButton from "@/components/common/WhatsAppButton";
 import { getBrandingLogoPath } from "@/branding/logoConfig";
 import { AuthProvider } from "@/context/AuthContext";
@@ -40,6 +41,7 @@ export default function RootLayout({
             <CssBaseline />
             <LoadingProvider>
               <AuthProvider>
+                <FirebaseAnalyticsBootstrap />
                 <Navbar />
                 {children}
                 <Footer />

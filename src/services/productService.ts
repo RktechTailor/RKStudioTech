@@ -90,6 +90,7 @@ const dummyCatalogProducts: CatalogProduct[] = [...fabricProducts.slice(0, 3), .
 );
 
 const byNewestFallback = (a: CatalogProduct, b: CatalogProduct) => a.id.localeCompare(b.id);
+const allowMockCatalogFallback = process.env.NODE_ENV !== "production";
 
 export const uploadProductImage = async (file: File) => {
   const storage = getFirebaseStorage();
@@ -153,7 +154,7 @@ export const subscribeToAllProducts = (
   const db = getFirebaseDb();
 
   if (!db) {
-    onProducts([...dummyCatalogProducts].sort(byNewestFallback));
+    onProducts(allowMockCatalogFallback ? [...dummyCatalogProducts].sort(byNewestFallback) : []);
     return () => undefined;
   }
 
@@ -166,7 +167,13 @@ export const subscribeToAllProducts = (
         toProduct(productDoc.id, productDoc.data() as Partial<CatalogProduct>),
       );
 
-      onProducts(firestoreProducts.length ? firestoreProducts : [...dummyCatalogProducts].sort(byNewestFallback));
+      onProducts(
+        firestoreProducts.length
+          ? firestoreProducts
+          : allowMockCatalogFallback
+            ? [...dummyCatalogProducts].sort(byNewestFallback)
+            : [],
+      );
     },
     (error) => onError?.(error as Error),
   );
@@ -180,7 +187,7 @@ export const subscribeToProductsByCategory = (
   const db = getFirebaseDb();
 
   if (!db) {
-    onProducts(dummyCatalogProducts.filter((product) => product.category === category));
+    onProducts(allowMockCatalogFallback ? dummyCatalogProducts.filter((product) => product.category === category) : []);
     return () => undefined;
   }
 
@@ -201,7 +208,9 @@ export const subscribeToProductsByCategory = (
       onProducts(
         firestoreProducts.length
           ? firestoreProducts
-          : dummyCatalogProducts.filter((product) => product.category === category),
+          : allowMockCatalogFallback
+            ? dummyCatalogProducts.filter((product) => product.category === category)
+            : [],
       );
     },
     (error) => onError?.(error as Error),

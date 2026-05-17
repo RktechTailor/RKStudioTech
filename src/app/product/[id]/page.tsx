@@ -22,10 +22,11 @@ import {
 import Grid from "@mui/material/Grid2";
 import Image from "next/image";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Layout from "@/components/layout/Layout";
 import { useProducts } from "@/hooks/useProducts";
 import { ProductCategory } from "@/services/productService";
+import { trackAnalyticsEvent } from "@/utils/analytics";
 import { formatINR } from "@/utils/currency";
 import { addFabricItemToCart } from "@/utils/fabricCart";
 
@@ -45,6 +46,7 @@ export default function ProductDetailsPage() {
   const [notice, setNotice] = useState("");
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [pricePulse, setPricePulse] = useState(false);
+  const lastTrackedProductId = useRef<string | null>(null);
 
   const product = useMemo(
     () => products.find((item) => item.id === params.id),
@@ -65,6 +67,26 @@ export default function ProductDetailsPage() {
     : "Ready to wear";
 
   const totalPrice = Math.round(discountedPrice * selectedQuantity);
+
+  useEffect(() => {
+    if (!product) {
+      return;
+    }
+
+    if (lastTrackedProductId.current === product.id) {
+      return;
+    }
+
+    lastTrackedProductId.current = product.id;
+
+    void trackAnalyticsEvent("product_view", {
+      product_id: product.id,
+      product_name: product.name,
+      category: product.category,
+      product_type: product.productType,
+      price_per_unit: discountedPrice,
+    });
+  }, [discountedPrice, product]);
 
   const updateQuantity = (next: number) => {
     const baseValue = Number.isFinite(next) ? Math.max(1, next) : 1;
@@ -93,6 +115,15 @@ export default function ProductDetailsPage() {
         selected_quantity: selectedQuantity,
         description: product.description,
         type: product.type,
+      });
+
+      void trackAnalyticsEvent("add_to_cart", {
+        product_id: product.id,
+        product_name: product.name,
+        category: product.category,
+        product_type: product.productType,
+        quantity: selectedQuantity,
+        value: totalPrice,
       });
 
       setNotice("Product cart me add ho gaya.");

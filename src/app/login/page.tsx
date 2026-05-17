@@ -23,7 +23,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { isFirebaseConfigured } from "@/services/firebase";
 import {
   createMockUser,
-  MOCK_OTP,
   normalizeIndianPhone,
   saveMockUserToFirestore,
   sendOtpToPhone,
@@ -76,7 +75,7 @@ export default function LoginPage() {
       if (useMockOtp) {
         setPhone(formattedPhone);
         setOtpSent(true);
-        setSuccess(`Mock OTP bhej diya gaya hai. Testing ke liye ${MOCK_OTP} use karein.`);
+        setSuccess("Mock OTP mode enabled. Testing code bhej diya gaya hai.");
         return;
       }
 
@@ -109,7 +108,7 @@ export default function LoginPage() {
 
       if (useMockOtp) {
         if (!verifyMockOtp(otp)) {
-          setError("Galat OTP. 1234 try karein.");
+          setError("Galat OTP. Testing code dobara check karein.");
           return;
         }
 
@@ -223,7 +222,7 @@ export default function LoginPage() {
 
               {useMockOtp ? (
                 <Alert severity="info">
-                  Testing ke liye Mock OTP mode chalu hai. Default OTP: {MOCK_OTP}
+                  Testing ke liye Mock OTP mode chalu hai.
                 </Alert>
               ) : null}
 

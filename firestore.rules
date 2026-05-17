@@ -1,37 +1,72 @@
 rules_version = '2';
+
+// ──────────────────────────────────────────────────────────────────────────────
+// RK Studio – Firestore Security Rules
+//
+// Admin access is granted via Firebase Auth custom claim { admin: true }.
+// Set it once with the Firebase Admin SDK (run as a one-off Node script):
+//   const admin = require('firebase-admin');
+//   admin.initializeApp();
+//   admin.auth().setCustomUserClaims('<YOUR_UID>', { admin: true });
+//
+// NEVER hardcode phone numbers or UIDs in rules – they are publicly readable
+// by anyone who visits your Firebase Console or inspects client SDK calls.
+// ──────────────────────────────────────────────────────────────────────────────
+
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
     function isSignedIn() {
       return request.auth != null;
     }
 
+    // Admin check via custom claim only (no hardcoded phone/uid in rules)
     function isAdmin() {
-      return isSignedIn() && request.auth.token.phone_number == "+918901501572";
+      return isSignedIn() && request.auth.token.admin == true;
     }
 
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // ── products ─────────────────────────────────────────────────────────────
+    match /products/{productId} {
+      allow read:   if true;
+      allow write:  if isAdmin();
+    }
+
+    // ── users ─────────────────────────────────────────────────────────────────
     match /users/{userId} {
-      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow read:   if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
       allow delete: if isAdmin();
     }
 
-    match /products/{productId} {
-      allow read: if true;
-      allow create, update, delete: if isAdmin();
-    }
-
+    // ── orders ────────────────────────────────────────────────────────────────
     match /orders/{orderId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read:   if isOwner(resource.data.userId) || isAdmin();
       allow create: if isSignedIn()
-        && request.resource.data.userId == request.auth.uid
+        && request.auth.uid == request.resource.data.userId
         && request.resource.data.service in ["tailoring", "fabric", "dupatta"];
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
+    // ── payment_records ───────────────────────────────────────────────────────
+    // Immutable after creation – prevents tampering with payment history.
     match /payment_records/{paymentId} {
-      allow read: if isAdmin();
+      allow read:   if isAdmin();
       allow create: if isSignedIn();
-      allow update, delete: if isAdmin();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── deny everything else ─────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

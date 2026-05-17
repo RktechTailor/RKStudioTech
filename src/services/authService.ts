@@ -23,8 +23,8 @@ export const normalizeIndianPhone = (value: string): string => {
   return value;
 };
 
-export const MOCK_OTP = "1234";
-export const useMockOtp = process.env.NEXT_PUBLIC_USE_MOCK_OTP !== "false";
+export const MOCK_OTP = process.env.NEXT_PUBLIC_MOCK_OTP || "";
+export const useMockOtp = process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_USE_MOCK_OTP === "true";
 
 export const createMockUser = (name: string, phone: string, role: UserRole): AuthUser => {
   const digits = phone.replace(/\D/g, "");
@@ -39,7 +39,7 @@ export const createMockUser = (name: string, phone: string, role: UserRole): Aut
 };
 
 export const verifyMockOtp = (otp: string): boolean => {
-  return otp.trim().length > 0 && (otp.trim() === MOCK_OTP || process.env.NODE_ENV !== "production");
+  return useMockOtp && Boolean(MOCK_OTP) && otp.trim().length > 0 && otp.trim() === MOCK_OTP;
 };
 
 export const getOrCreateRecaptcha = (): RecaptchaVerifier => {

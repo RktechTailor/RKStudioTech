@@ -1,0 +1,26 @@
+rules_version = '2';
+
+// ──────────────────────────────────────────────────────────────────────────────
+// RK Studio – Firebase Storage Security Rules
+// ──────────────────────────────────────────────────────────────────────────────
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ── Product images ────────────────────────────────────────────────────────
+    // Anyone can download (public catalog).
+    // Only admin can upload/delete (admin custom claim required).
+    match /products/{filename} {
+      allow read:   if true;
+      allow write:  if request.auth != null
+                    && request.auth.token.admin == true
+                    && request.resource.size < 10 * 1024 * 1024   // max 10 MB
+                    && request.resource.contentType.matches('image/.*');
+    }
+
+    // ── Deny everything else ─────────────────────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

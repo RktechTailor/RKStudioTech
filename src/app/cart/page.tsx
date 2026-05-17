@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import Layout from "@/components/layout/Layout";
 import { useAuth } from "@/hooks/useAuth";
+import { trackAnalyticsEvent } from "@/utils/analytics";
 import { formatINR } from "@/utils/currency";
 import { FabricCartItem, readFabricCart, removeFabricCartItem, clearFabricCart } from "@/utils/fabricCart";
 import { createPendingPaymentToken, savePendingPaymentOrder } from "@/utils/paymentSession";
@@ -48,6 +49,13 @@ export default function CartPage() {
   };
 
   const handleCheckoutItem = (item: FabricCartItem) => {
+    void trackAnalyticsEvent("checkout_start", {
+      mode: "single_item",
+      item_count: 1,
+      category: item.category,
+      value: item.total_price,
+    });
+
     const token = createPendingPaymentToken();
 
     savePendingPaymentOrder(token, {
@@ -84,6 +92,12 @@ export default function CartPage() {
     if (items.length === 0) {
       return;
     }
+
+    void trackAnalyticsEvent("checkout_start", {
+      mode: "cart_all",
+      item_count: items.length,
+      value: subtotal,
+    });
 
     const token = createPendingPaymentToken();
     const allSuitItems = items.every((item) => item.category === "dupatta");

@@ -34,6 +34,7 @@ import {
   UserOrder,
 } from "@/services/orderService";
 import { AppUser, subscribeToAllUsers } from "@/services/userService";
+import PreLaunchFlow from "@/features/admin/PreLaunchFlow";
 
 const formatStatusLabel = (status: OrderStatus) => {
   if (status === "pending") return "Pending";
@@ -258,6 +259,7 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
   const [error, setError] = useState("");
   const [updatingOrderId, setUpdatingOrderId] = useState("");
+  const [launchFlowOpen, setLaunchFlowOpen] = useState(false);
 
   useEffect(() => {
     const unsubscribeUsers = subscribeToAllUsers(setUsers, () => {
@@ -398,12 +400,21 @@ export default function AdminDashboard() {
                 <Button onClick={handleExportOrders} variant="contained">Export Orders</Button>
                 <Button onClick={handleExportUsers} variant="outlined">Export Users</Button>
                 <Button component={Link} href="/admin/products" variant="outlined">Manage Products</Button>
+                <Button
+                  variant="contained"
+                  color="success"
+                  onClick={() => setLaunchFlowOpen(true)}
+                >
+                  Launch App
+                </Button>
               </Stack>
             </Stack>
           </CardContent>
         </Card>
 
         {error ? <Alert severity="error">{error}</Alert> : null}
+
+        <PreLaunchFlow open={launchFlowOpen} onClose={() => setLaunchFlowOpen(false)} />
 
         <Grid2 container spacing={2}>
           <Grid2 size={{ xs: 12, md: 4 }}>

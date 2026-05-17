@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import Layout from "@/components/layout/Layout";
 import { OrderDetails } from "@/services/orderService";
 import { saveOrderToFirestore } from "@/services/orderService";
+import { trackAnalyticsEvent } from "@/utils/analytics";
 import { RK_STUDIO } from "@/utils/constants";
 import { removeFabricCartItem, removeFabricCartItems } from "@/utils/fabricCart";
 import { startRazorpayPayment, buildUpiPaymentLink } from "@/utils/payment";
@@ -158,6 +159,13 @@ export default function CheckoutPage() {
       paymentType: pendingOrder.paymentType,
       amountPaid: finalAmount,
       paymentId,
+    });
+
+    void trackAnalyticsEvent("payment_success", {
+      service: pendingOrder.service,
+      payment_method: paymentMethod,
+      payment_type: pendingOrder.paymentType || "full",
+      value: finalAmount,
     });
 
     const whatsappDetails = [...pendingOrder.whatsappDetails, `Payment: ${paymentLabel} (INR ${finalAmount})`];

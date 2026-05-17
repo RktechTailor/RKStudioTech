@@ -8,7 +8,7 @@ type CreateOrderPayload = {
 
 export async function POST(request: Request) {
   try {
-    const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+    const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
     if (!keyId || !keySecret) {
@@ -20,15 +20,20 @@ export async function POST(request: Request) {
 
     const body = (await request.json()) as CreateOrderPayload;
     const amount = Number(body.amount || 0);
+    const receipt = typeof body.receipt === "string" ? body.receipt.trim() : "";
 
     if (!Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ error: "Invalid amount." }, { status: 400 });
     }
 
+    if (receipt && !/^[a-zA-Z0-9_-]{3,64}$/.test(receipt)) {
+      return NextResponse.json({ error: "Invalid receipt value." }, { status: 400 });
+    }
+
     const payload = {
       amount: Math.round(amount * 100),
       currency: RK_STUDIO.payment.currency,
-      receipt: body.receipt || `rkstudio_${Date.now()}`,
+      receipt: receipt || `rkstudio_${Date.now()}`,
       payment_capture: 1,
     };
 
