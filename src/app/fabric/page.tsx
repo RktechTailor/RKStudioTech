@@ -6,7 +6,7 @@ import StraightenIcon from "@mui/icons-material/Straighten";
 import CheckroomIcon from "@mui/icons-material/Checkroom";
 import { Alert, Box, Button, Chip, Skeleton, Stack, Typography } from "@mui/material";
 import Grid from "@mui/material/Grid2";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useProducts } from "@/hooks/useProducts";
 import Layout from "@/components/layout/Layout";
@@ -24,9 +24,17 @@ const FabricGrid = dynamic(
 
 export default function FabricPage() {
   const router = useRouter();
-  const { products, loading, error: productsError } = useProducts({ category: "fabric" });
+  const {
+    products,
+    loading,
+    error: productsError,
+    loadMore,
+    hasMore,
+    loadingMore,
+  } = useProducts({ category: "fabric", paginated: true, pageSize: 24 });
   const [filters, setFilters] = useState<ProductFilters>(defaultFilters);
   const [unitFilter, setUnitFilter] = useState<"all" | "meter" | "piece">("all");
+  const infiniteScrollAnchorRef = useRef<HTMLDivElement | null>(null);
 
   const filteredProducts = useMemo(() => {
     const nextProducts = applyProductFilters(products, filters);
@@ -44,18 +52,53 @@ export default function FabricPage() {
     router.push(`/product/${encodeURIComponent(product.id)}?category=${encodeURIComponent(product.category)}`);
   };
 
+  useEffect(() => {
+    if (loading || loadingMore || !hasMore) {
+      return;
+    }
+
+    const anchor = infiniteScrollAnchorRef.current;
+
+    if (!anchor) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+
+        if (!entry?.isIntersecting || loadingMore || !hasMore) {
+          return;
+        }
+
+        void loadMore();
+      },
+      {
+        root: null,
+        rootMargin: "220px 0px",
+        threshold: 0,
+      },
+    );
+
+    observer.observe(anchor);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, loadMore, loading, loadingMore]);
+
   return (
     <Layout>
       <Stack spacing={3}>
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} justifyContent="space-between" alignItems={{ xs: "stretch", sm: "center" }}>
-          <Typography variant="h3">Buy Febric</Typography>
+          <Typography variant="h3">Buy Fabric</Typography>
           <Button variant="outlined" onClick={() => router.push("/cart")}>Open Cart</Button>
         </Stack>
         <Typography color="text.secondary">
           Find quality cloth at fair prices.
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Koi dikkat ho to WhatsApp karein. Hum madad ke liye yahan hain.
+          Need help? Contact us on WhatsApp.
         </Typography>
 
         <Stack
@@ -132,7 +175,24 @@ export default function FabricPage() {
         ) : null}
 
         {!loading && filteredProducts.length === 0 ? (
-          <Alert severity="info">Abhi filter ke hisab se kapda nahi mila.</Alert>
+          <Alert severity="info">No products match the current filters.</Alert>
+        ) : null}
+
+        {!loading && hasMore ? (
+          <>
+            <Box ref={infiniteScrollAnchorRef} sx={{ width: "100%", height: 1 }} />
+            {loadingMore ? (
+              <Stack spacing={1} sx={{ px: { xs: 0, md: 2 } }}>
+                <Skeleton variant="rounded" height={16} />
+                <Skeleton variant="rounded" height={16} width="70%" />
+              </Stack>
+            ) : null}
+            <Stack direction="row" justifyContent="center">
+              <Button variant="outlined" onClick={loadMore} disabled={loadingMore}>
+                {loadingMore ? "Loading..." : "Load More"}
+              </Button>
+            </Stack>
+          </>
         ) : null}
 
       </Stack>

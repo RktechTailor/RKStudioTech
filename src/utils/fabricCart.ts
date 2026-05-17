@@ -6,7 +6,11 @@ export type FabricCartItem = {
   category: "fabric" | "dupatta";
   product_type: "fabric" | "piece";
   unit_label: "meter" | "piece";
+  pricing_type: "meter" | "piece";
   price_per_unit: number;
+  market_price: number;
+  discount_percentage: number;
+  advance_percentage: number;
   selected_quantity: number;
   total_price: number;
   description?: string;
@@ -70,6 +74,10 @@ export const addFabricItemToCart = (
     ...item,
     id: `${item.productId}-${Date.now()}`,
     unit_label: item.product_type === "fabric" ? "meter" : "piece",
+    pricing_type: item.product_type === "fabric" ? "meter" : "piece",
+    market_price: item.market_price,
+    discount_percentage: item.discount_percentage,
+    advance_percentage: item.advance_percentage,
     selected_quantity: quantity,
     total_price: totalPrice,
     addedAt: Date.now(),

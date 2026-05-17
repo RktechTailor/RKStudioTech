@@ -37,44 +37,44 @@ import { isAdminPhone } from "@/utils/admin";
 
 const mapOtpErrorMessage = (error: unknown) => {
   if (!(error instanceof FirebaseError)) {
-    return "OTP bhejne me dikkat aayi. Kripya thodi der baad dobara try karein.";
+    return "Could not send OTP. Please try again in a moment.";
   }
 
   switch (error.code) {
     case "auth/invalid-phone-number":
-      return "Phone number sahi format me dalein.";
+      return "Enter phone number in a valid format.";
     case "auth/too-many-requests":
-      return "Bahut zyada attempts hue. Thodi der baad phir try karein.";
+      return "Too many attempts. Please try again later.";
     case "auth/captcha-check-failed":
-      return "Verification complete nahi ho paya. Page refresh karke dobara try karein.";
+      return "Verification failed. Refresh the page and try again.";
     case "auth/network-request-failed":
-      return "Network issue hai. Internet check karke dobara try karein.";
+      return "Network issue. Check your connection and try again.";
     case "auth/unauthorized-domain":
     case "auth/configuration-not-found":
     case "auth/billing-not-enabled":
     case "auth/invalid-app-credential":
-      return "Is waqt OTP service available nahi hai. Kripya support se sampark karein.";
+      return "OTP service is not available right now. Please contact support.";
     default:
-      return "OTP bhejne me dikkat aayi. Kripya thodi der baad dobara try karein.";
+      return "Could not send OTP. Please try again in a moment.";
   }
 };
 
 const mapVerifyOtpErrorMessage = (error: unknown) => {
   if (!(error instanceof FirebaseError)) {
-    return "OTP verify nahi hua. Dobara koshish karein.";
+    return "OTP verification failed. Please try again.";
   }
 
   switch (error.code) {
     case "auth/invalid-verification-code":
-      return "OTP galat hai. Sahi code dal kar dobara try karein.";
+      return "Invalid OTP. Enter the correct code and try again.";
     case "auth/code-expired":
-      return "OTP expire ho gaya. Naya OTP bhej kar try karein.";
+      return "OTP has expired. Request a new OTP and try again.";
     case "auth/session-expired":
-      return "Session expire ho gayi. Naya OTP bhej kar phir verify karein.";
+      return "Session expired. Request a new OTP and verify again.";
     case "auth/network-request-failed":
-      return "Network issue hai. Internet check karke dobara try karein.";
+      return "Network issue. Check your connection and try again.";
     default:
-      return "OTP verify nahi ho paya. Kripya dobara koshish karein.";
+      return "OTP verification failed. Please try again.";
   }
 };
 
@@ -104,14 +104,14 @@ export default function LoginPage() {
     setSuccess("");
 
     if (!name.trim()) {
-      setError("Apna naam dalein.");
+      setError("Please enter your name.");
       return;
     }
 
     const formattedPhone = normalizeIndianPhone(phone);
 
     if (!formattedPhone.startsWith("+") || formattedPhone.length < 13) {
-      setError("Sahi Indian phone number dalein.");
+      setError("Please enter a valid Indian phone number.");
       return;
     }
 
@@ -120,7 +120,7 @@ export default function LoginPage() {
       if (useMockOtp) {
         setPhone(formattedPhone);
         setOtpSent(true);
-        setSuccess("Mock OTP mode enabled. Testing code bhej diya gaya hai.");
+        setSuccess("Mock OTP mode is enabled. Test code is ready.");
         return;
       }
 
@@ -139,12 +139,12 @@ export default function LoginPage() {
     setSuccess("");
 
     if (!useMockOtp && !confirmationResultRef.current) {
-      setError("Pehle OTP bhejein.");
+      setError("Send OTP first.");
       return;
     }
 
     if (!otp) {
-      setError("OTP dalein.");
+      setError("Enter OTP.");
       return;
     }
 
@@ -153,19 +153,19 @@ export default function LoginPage() {
 
       if (useMockOtp) {
         if (!verifyMockOtp(otp)) {
-          setError("Galat OTP. Testing code dobara check karein.");
+          setError("Invalid OTP. Please check the test code.");
           return;
         }
 
         if (role === "admin" && !isAdminPhone(phone)) {
-          setError("Admin access sirf set kiye hue admin number par milega.");
+          setError("Admin access is only allowed for approved admin numbers.");
           return;
         }
 
         const mockUser = createMockUser(name, phone, role);
         setMockSession(mockUser);
         await trackAsync(saveMockUserToFirestore(mockUser));
-        setSuccess("Mock OTP se login ho gaya.");
+        setSuccess("Login successful with mock OTP.");
       } else {
         await trackAsync(verifyOtpAndSaveUser(confirmationResultRef.current as ConfirmationResult, otp, name, phone));
       }
@@ -205,12 +205,12 @@ export default function LoginPage() {
                           WebkitTextFillColor: "transparent",
                         }}
                       >
-                        RK Studio me login karein
+                        Sign in to RK Studio
                       </Typography>
-                      <Chip size="small" label="Surakshit" color="secondary" />
+                      <Chip size="small" label="Secure" color="secondary" />
                     </Stack>
                     <Typography color="text.secondary">
-                      Login karke silai order, saved kapda aur support asaani se paayein.
+                      Sign in to manage tailoring orders, saved items, and support.
                     </Typography>
                   </Stack>
                 </Stack>
@@ -232,8 +232,8 @@ export default function LoginPage() {
               </ToggleButtonGroup>
 
               <TextField
-                label="Naam"
-                placeholder="Aapka naam"
+                label="Name"
+                placeholder="Your name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 disabled={otpSent || busy}
@@ -250,7 +250,7 @@ export default function LoginPage() {
               {otpSent ? (
                 <TextField
                   label="OTP"
-                  placeholder={useMockOtp ? "Testing OTP dalein" : "6-digit code dalein"}
+                  placeholder={useMockOtp ? "Enter test OTP" : "Enter 6-digit OTP"}
                   value={otp}
                   onChange={(event) => setOtp(event.target.value)}
                 />
@@ -261,27 +261,27 @@ export default function LoginPage() {
 
               {!useMockOtp && !isFirebaseConfigured ? (
                 <Alert severity="warning">
-                  Firebase env vars missing hain. OTP login ke liye NEXT_PUBLIC_FIREBASE_* values add karein.
+                  Firebase environment values are missing. Add NEXT_PUBLIC_FIREBASE_* for OTP login.
                 </Alert>
               ) : null}
 
               {useMockOtp ? (
                 <Alert severity="info">
-                  Testing ke liye Mock OTP mode chalu hai. Test OTP: {MOCK_OTP || "set nahi hai"}
+                  Mock OTP mode is active for testing. Test OTP: {MOCK_OTP || "not set"}
                 </Alert>
               ) : null}
 
               <Typography variant="caption" color="text.secondary">
-                Koi dikkat ho to WhatsApp karein. Hum madad ke liye yahan hain.
+                Need help? Contact us on WhatsApp.
               </Typography>
 
               {!otpSent ? (
                 <Button variant="contained" onClick={handleSendOtp} disabled={busy || (!useMockOtp && !isFirebaseConfigured)}>
-                  {busy ? "Bheja ja raha hai..." : "OTP bhejein"}
+                  {busy ? "Sending..." : "Send OTP"}
                 </Button>
               ) : (
                 <Button variant="contained" onClick={handleVerifyOtp} disabled={busy || (!useMockOtp && !isFirebaseConfigured)}>
-                  {busy ? "Verify ho raha hai..." : "OTP verify karein"}
+                  {busy ? "Verifying..." : "Verify OTP"}
                 </Button>
               )}
 

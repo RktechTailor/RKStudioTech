@@ -15,29 +15,29 @@ import Layout from "@/components/layout/Layout";
 const services = [
   {
     titleEn: "Stitch Clothes",
-    titleHi: "Silai",
-    description: "Custom tailoring for perfect fit.",
+    descriptionEn: "Custom tailoring for perfect fit.",
+    descriptionHi: "Perfect fitting ke liye custom silai.",
     href: "/tailoring",
     icon: ContentCutIcon,
   },
   {
-    titleEn: "Buy Febric",
-    titleHi: "Kapda",
-    description: "Quality cloth at fair prices.",
+    titleEn: "Buy Fabric",
+    descriptionEn: "Quality cloth at fair prices.",
+    descriptionHi: "Achhi quality ka fabric sahi daam par.",
     href: "/fabric",
     icon: CheckroomIcon,
   },
   {
     titleEn: "Dupatta",
-    titleHi: "डुपट्टा",
-    description: "Ready designs for all occasions.",
+    descriptionEn: "Ready designs for all occasions.",
+    descriptionHi: "Har occasion ke liye ready designs.",
     href: "/dupatta",
     icon: StyleIcon,
   },
   {
     titleEn: "Alterations",
-    titleHi: "Kapde Theek Karna",
-    description: "Repairs and modifications.",
+    descriptionEn: "Repairs and modifications.",
+    descriptionHi: "Kapdo ki fitting aur changes.",
     href: "/tailoring",
     icon: PrecisionManufacturingIcon,
   },
@@ -47,25 +47,21 @@ const benefits = [
   {
     icon: CheckroomIcon,
     titleEn: "Perfect Fitting",
-    titleHi: "Perfect Fit",
     desc: "Guaranteed perfect fit every time",
   },
   {
     icon: LocalShippingIcon,
     titleEn: "Doorstep Service",
-    titleHi: "Ghar Par Service",
     desc: "We come to you, no hassle",
   },
   {
     icon: ThumbUpAltIcon,
     titleEn: "Affordable Price",
-    titleHi: "Sasti Silai",
     desc: "Best rates in town, no hidden charges",
   },
   {
     icon: SecurityIcon,
     titleEn: "Trusted Quality",
-    titleHi: "Bharosemand",
     desc: "Expert tailors with 10+ years experience",
   },
 ];
@@ -73,21 +69,15 @@ const benefits = [
 const problems = [
   {
     problem: "Finding good tailors is difficult",
-    problemHi: "Acha darzi dhundna mushkil hai",
     solution: "Book from our trusted network instantly",
-    solutionHi: "Hamari trusted team se book karein",
   },
   {
     problem: "No proper fitting or delivery tracking",
-    problemHi: "Fitting theek nahi, delivery pata nahi chalta",
     solution: "Perfect fit guarantee + order tracking",
-    solutionHi: "Perfect fit + apka order track karein",
   },
   {
     problem: "Expensive and time-consuming",
-    problemHi: "Mehnga aur time lagne wala kaam",
     solution: "Affordable prices, doorstep delivery",
-    solutionHi: "Sasta aur ghar baithe deliver karenge",
   },
 ];
 
@@ -116,11 +106,72 @@ export default function Home() {
                 fontSize: { xs: "2rem", md: "3.5rem" },
                 fontWeight: 800,
                 lineHeight: 1.2,
-                color: "#111827",
+                position: "relative",
+                display: "inline-block",
+                color: "rgb(17, 34, 78)",
+                textShadow: "0 8px 20px rgba(35, 88, 255, 0.22)",
+                animation: "titleFloat 3.8s ease-in-out infinite",
+                "@keyframes titleFloat": {
+                  "0%": { transform: "translateY(0px)" },
+                  "50%": { transform: "translateY(-4px)" },
+                  "100%": { transform: "translateY(0px)" },
+                },
+                "&::after": {
+                  content: '""',
+                  position: "absolute",
+                  top: 0,
+                  left: "-35%",
+                  width: "28%",
+                  height: "100%",
+                  background:
+                    "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%)",
+                  transform: "skewX(-18deg)",
+                  animation: "titleShine 3.2s ease-in-out infinite",
+                },
+                "@keyframes titleShine": {
+                  "0%": { left: "-35%" },
+                  "100%": { left: "110%" },
+                },
               }}
             >
-              Custom Tailoring Made Easy 👗
+              <Box component="span" sx={{ color: "rgb(15, 38, 89)" }}>
+                Custom Tailoring Made Easy
+              </Box>
+              <Box component="span" sx={{ mx: 1, color: "rgb(243, 120, 38)" }}>
+                |
+              </Box>
+              <Box component="span" sx={{ color: "rgb(5, 126, 98)" }}>
+                Custom Tailoring Ab Bilkul Easy Hai
+              </Box>{" "}
+              👗
             </Typography>
+            <Box
+              sx={{
+                width: { xs: 240, md: 520 },
+                height: 7,
+                borderRadius: 999,
+                background: "rgba(15, 38, 89, 0.14)",
+                overflow: "hidden",
+                mt: -1,
+                mb: 0.5,
+              }}
+            >
+              <Box
+                sx={{
+                  width: "38%",
+                  height: "100%",
+                  borderRadius: 999,
+                  background: "linear-gradient(90deg, rgb(15, 38, 89), rgb(243, 120, 38), rgb(5, 126, 98))",
+                  boxShadow: "0 0 14px rgba(35, 88, 255, 0.45)",
+                  animation: "sliderMove 2.6s ease-in-out infinite",
+                  "@keyframes sliderMove": {
+                    "0%": { transform: "translateX(-120%)" },
+                    "50%": { transform: "translateX(120%)" },
+                    "100%": { transform: "translateX(280%)" },
+                  },
+                }}
+              />
+            </Box>
             <Typography
               variant="h4"
               sx={{
@@ -130,9 +181,8 @@ export default function Home() {
                 lineHeight: 1.4,
               }}
             >
-              Ab Silai ka Kaam Hua Aur Bhi Aasaan
+              Tailoring is now faster and easier
             </Typography>
-
             <Typography
               variant="body1"
               sx={{
@@ -145,18 +195,6 @@ export default function Home() {
             >
               Book tailoring services, order custom clothes, and get doorstep delivery. All in one place.
             </Typography>
-            <Typography
-              variant="body2"
-              sx={{
-                fontSize: { xs: "0.85rem", md: "1rem" },
-                color: "#666",
-                maxWidth: 700,
-                fontStyle: "italic",
-              }}
-            >
-              Ab ghar baithe silai, design aur delivery – sab kuch ek hi app mein
-            </Typography>
-
             <Button
               component={Link}
               href="/tailoring"
@@ -181,7 +219,7 @@ export default function Home() {
                 transition: "all 0.3s ease",
               }}
             >
-              Get Started / Shuru Karein
+              Get Started
             </Button>
           </Stack>
         </Box>
@@ -224,9 +262,6 @@ export default function Home() {
                       <Typography variant="body1" sx={{ fontWeight: 600, color: "#333" }}>
                         {item.problem}
                       </Typography>
-                      <Typography variant="caption" sx={{ color: "#888" }}>
-                        {item.problemHi}
-                      </Typography>
                     </Box>
                     <Box
                       sx={{
@@ -241,9 +276,6 @@ export default function Home() {
                       </Typography>
                       <Typography variant="body1" sx={{ fontWeight: 600, color: "#2e7d32" }}>
                         {item.solution}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: "#666" }}>
-                        {item.solutionHi}
                       </Typography>
                     </Box>
                   </Stack>
@@ -327,13 +359,28 @@ export default function Home() {
                         {service.titleEn}
                       </Typography>
                       <Typography
-                        variant="caption"
+                        variant="body2"
                         sx={{
-                          color: "#888",
-                          fontSize: { xs: "0.75rem", md: "0.85rem" },
+                          color: "#4b5563",
+                          textAlign: "center",
+                          fontSize: { xs: "0.78rem", md: "0.85rem" },
+                          lineHeight: 1.35,
+                          maxWidth: 180,
                         }}
                       >
-                        {service.titleHi}
+                        {service.descriptionEn}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: "#6b7280",
+                          textAlign: "center",
+                          fontSize: { xs: "0.74rem", md: "0.82rem" },
+                          lineHeight: 1.35,
+                          maxWidth: 180,
+                        }}
+                      >
+                        {service.descriptionHi}
                       </Typography>
                     </Stack>
                   </Box>
@@ -392,9 +439,6 @@ export default function Home() {
                       <Typography variant="h6" sx={{ fontWeight: 700, color: "#333" }}>
                         {benefit.titleEn}
                       </Typography>
-                      <Typography variant="caption" sx={{ color: "#666", fontWeight: 600 }}>
-                        {benefit.titleHi}
-                      </Typography>
                       <Typography variant="body2" sx={{ color: "#888" }}>
                         {benefit.desc}
                       </Typography>
@@ -434,7 +478,7 @@ export default function Home() {
                 fontSize: { xs: "0.95rem", md: "1.1rem" },
               }}
             >
-              1000+ logon ka bharosa aur vishwas
+              Trusted by more than 1000 customers
             </Typography>
           </Stack>
         </Box>
@@ -460,7 +504,7 @@ export default function Home() {
               fontSize: { xs: "0.95rem", md: "1.1rem" },
             }}
           >
-            Aaj hi apni silai journey shuru karein
+            Start your order in a few clicks
           </Typography>
           <Button
             component={Link}
@@ -485,7 +529,7 @@ export default function Home() {
               transition: "all 0.3s ease",
             }}
           >
-            Book Now / Abhi Book Karein
+            Book Now
           </Button>
         </Box>
       </Stack>

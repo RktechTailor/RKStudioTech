@@ -15,15 +15,19 @@ import { getTailoringValidationMessage } from "@/features/tailoring/utils/valida
 import TailoringStepper from "./TailoringStepper";
 
 type FabricSource = "" | "own" | "external" | "rkstudio";
+type PickupDropOption = "self_visit" | "pickup_only" | "drop_only" | "pickup_drop";
 
 type TailoringFormData = {
   category: string;
   design: string;
+  size: string;
+  customSizeNotes: string;
   bust: string;
   waist: string;
   length: string;
   extraMeasurement: string;
   fabricSource: FabricSource;
+  pickupDropOption: PickupDropOption;
   fabricType: string;
   fabricColor: string;
   fabricName: string;
@@ -41,8 +45,26 @@ type TailoringPickerFilters = {
   sortBy: string;
 };
 
-const stepLabels = ["Category", "Design", "Nape", "Kapda Source", "Summary"];
+const stepLabels = ["Category", "Design", "Measurements", "Fabric Source", "Summary"];
 const SAVED_FABRICS_STORAGE_KEY = "rkstudio_saved_fabric_ids";
+const CUSTOM_SIZE_VALUE = "Custom Size";
+const CUSTOM_SIZE_NOTES_MAX_LENGTH = 500;
+const DEFAULT_PICKUP_CHARGE = Number(process.env.NEXT_PUBLIC_TAILORING_PICKUP_CHARGE || 50);
+const DEFAULT_DROP_CHARGE = Number(process.env.NEXT_PUBLIC_TAILORING_DROP_CHARGE || 50);
+
+const sizeOptions: Array<{ value: string; label: string }> = [
+  { value: "XS", label: "XS (Extra Small)" },
+  { value: "S", label: "S (Small)" },
+  { value: "M", label: "M (Medium)" },
+  { value: "L", label: "L (Large)" },
+  { value: "XL", label: "XL (Extra Large)" },
+  { value: "XXL", label: "XXL" },
+  { value: CUSTOM_SIZE_VALUE, label: CUSTOM_SIZE_VALUE },
+];
+
+const normalizeSpace = (value: string) => {
+  return value.replace(/\s+/g, " ").trim();
+};
 
 const readSavedFabricIdsFromStorage = () => {
   if (typeof window === "undefined") {
@@ -68,18 +90,18 @@ const readSavedFabricIdsFromStorage = () => {
 const fabricSourceOptions: Array<{ value: Exclude<FabricSource, "">; title: string; description: string }> = [
   {
     value: "own",
-    title: "Mere paas kapda hai",
-    description: "Kapda type, color aur note batayein.",
+    title: "I already have fabric",
+    description: "Share fabric type, color, and notes.",
   },
   {
     value: "external",
-    title: "Main khud kapda kharidunga",
-    description: "Jo kapda lena hai uska naam aur link batayein.",
+    title: "I will buy fabric myself",
+    description: "Share the fabric name and link.",
   },
   {
     value: "rkstudio",
-    title: "RK Studio se kapda chahiye",
-    description: "RK Studio ka kapda seedha yahin se chune.",
+    title: "I want fabric from RK Studio",
+    description: "Choose RK Studio fabric directly here.",
   },
 ];
 
@@ -102,11 +124,14 @@ const getFabricSourceLabel = (fabricSource: FabricSource) => {
 const initialData: TailoringFormData = {
   category: "",
   design: "",
+  size: "",
+  customSizeNotes: "",
   bust: "",
   waist: "",
   length: "",
   extraMeasurement: "",
   fabricSource: "",
+  pickupDropOption: "self_visit",
   fabricType: "",
   fabricColor: "",
   fabricName: "",
@@ -427,14 +452,39 @@ export default function TailoringForm() {
   }, [formData.fabricLink, formData.fabricName, formData.fabricNotes, formData.fabricSource, formData.fabricType, formData.fabricColor, selectedFabricProduct]);
 
   const whatsappDetails = useMemo(() => {
+    const normalizedCustomSize = normalizeSpace(formData.customSizeNotes);
+    const sizeText = formData.size
+      ? formData.size === CUSTOM_SIZE_VALUE
+        ? `Custom Size: ${normalizedCustomSize || "-"}`
+        : `Size: ${formData.size}`
+      : "Size: -";
+
+    const pickupCharge = formData.pickupDropOption === "pickup_only" || formData.pickupDropOption === "pickup_drop"
+      ? DEFAULT_PICKUP_CHARGE
+      : 0;
+    const dropCharge = formData.pickupDropOption === "drop_only" || formData.pickupDropOption === "pickup_drop"
+      ? DEFAULT_DROP_CHARGE
+      : 0;
+    const pickupDropLabel = formData.pickupDropOption === "pickup_only"
+      ? "Pickup Only"
+      : formData.pickupDropOption === "drop_only"
+        ? "Drop Only"
+        : formData.pickupDropOption === "pickup_drop"
+          ? "Pickup & Drop"
+          : "No Pickup (Self Visit)";
+
     return [
       `Tailoring Category: ${formData.category || "-"}`,
       `Design: ${formData.design || "-"}`,
+      sizeText,
+      `Pickup/Drop: ${pickupDropLabel}`,
+      `Pickup Charge: INR ${pickupCharge}`,
+      `Drop Charge: INR ${dropCharge}`,
       `Measurements: Bust ${formData.bust || "-"}, Waist ${formData.waist || "-"}, Length ${formData.length || "-"}`,
       `Extra Measurement: ${formData.extraMeasurement || "-"}`,
       ...fabricSummaryLines,
     ];
-  }, [fabricSummaryLines, formData.bust, formData.category, formData.design, formData.extraMeasurement, formData.length, formData.waist]);
+  }, [fabricSummaryLines, formData.bust, formData.category, formData.customSizeNotes, formData.design, formData.extraMeasurement, formData.length, formData.pickupDropOption, formData.size, formData.waist]);
 
   const validationMessage = useMemo(() => {
     return getTailoringValidationMessage({
@@ -442,6 +492,8 @@ export default function TailoringForm() {
       formData,
     });
   }, [activeStep, formData]);
+
+  const customSizeCharactersLeft = CUSTOM_SIZE_NOTES_MAX_LENGTH - formData.customSizeNotes.length;
 
   const handleNext = async () => {
     if (validationMessage) {
@@ -455,6 +507,26 @@ export default function TailoringForm() {
       const userId = user?.uid || `guest-${formData.phone.replace(/\D/g, "") || "anonymous"}`;
       const name = formData.customerName.trim() || user?.displayName || "Customer";
       const phone = formData.phone.trim() || user?.phoneNumber || "Not provided";
+      const normalizedCustomSize = normalizeSpace(formData.customSizeNotes);
+      const pickupCharge = formData.pickupDropOption === "pickup_only" || formData.pickupDropOption === "pickup_drop"
+        ? DEFAULT_PICKUP_CHARGE
+        : 0;
+      const dropCharge = formData.pickupDropOption === "drop_only" || formData.pickupDropOption === "pickup_drop"
+        ? DEFAULT_DROP_CHARGE
+        : 0;
+      const workType = formData.design === "simple" ? "simple" : "heavy";
+      const sizePayload = formData.size
+        ? formData.size === CUSTOM_SIZE_VALUE
+          ? {
+            size_type: "custom" as const,
+            size_value: CUSTOM_SIZE_VALUE,
+            custom_size_notes: normalizedCustomSize,
+          }
+          : {
+            size_type: "standard" as const,
+            size_value: formData.size,
+          }
+        : null;
 
       try {
         setSubmitting(true);
@@ -470,6 +542,11 @@ export default function TailoringForm() {
               orderDetails: {
                 category: formData.category || "-",
                 design: formData.design || "-",
+                ...(sizePayload || {}),
+                work_type: workType,
+                pickup_drop_option: formData.pickupDropOption,
+                pickup_charge: pickupCharge,
+                drop_charge: dropCharge,
                 measurements: {
                   bust: formData.bust || "-",
                   waist: formData.waist || "-",
@@ -479,10 +556,19 @@ export default function TailoringForm() {
                 fabricDetails: fabricDetails || {
                   fabricSource: "-",
                 },
+                pricing_type: selectedFabricProduct?.pricingType || "piece",
+                quantity_or_meter: 1,
               },
               productId: selectedFabricProduct?.id || undefined,
               amount: RK_STUDIO.payment.tailoringAdvanceDefault,
               paymentType: "advance",
+              pricingInput: {
+                productId: selectedFabricProduct?.id || undefined,
+                pricingType: selectedFabricProduct?.pricingType || "piece",
+                quantityOrMeter: 1,
+                pickupCharge,
+                dropCharge,
+              },
               whatsappDetails,
             }),
           ),
@@ -490,7 +576,7 @@ export default function TailoringForm() {
 
         router.push(`/checkout?token=${encodeURIComponent(token)}`);
       } catch {
-        setError("Payment page nahi khul payi. Dobara koshish karein.");
+        setError("Could not open payment page. Please try again.");
       } finally {
         setSubmitting(false);
       }
@@ -510,10 +596,10 @@ export default function TailoringForm() {
     <Card>
       <CardContent>
         <Typography variant="h4" mb={1}>
-          Silai Order Form
+          Tailoring Order Form
         </Typography>
         <Typography color="text.secondary" mb={3}>
-          Step by step detail bharein, hum jaldi contact karenge.
+          Fill details step by step, and we will contact you soon.
         </Typography>
 
         <TailoringStepper steps={stepLabels} activeStep={activeStep} />
@@ -521,7 +607,7 @@ export default function TailoringForm() {
         <Stack spacing={3}>
             {activeStep === 0 ? (
               <FormControl>
-                <FormLabel>1. Category chune</FormLabel>
+                <FormLabel>1. Select category</FormLabel>
                 <RadioGroup
                   value={formData.category}
                   onChange={(event) => updateField("category", event.target.value)}
@@ -537,7 +623,7 @@ export default function TailoringForm() {
               <TextField
                 select
                 fullWidth
-                label="2. Design chune"
+                label="2. Select design"
                 value={formData.design}
                 onChange={(event) => updateField("design", event.target.value)}
               >
@@ -549,8 +635,48 @@ export default function TailoringForm() {
 
             {activeStep === 2 ? (
               <Box>
-                <Typography mb={2}>3. Nape likhein (inch me)</Typography>
+                <Typography mb={2}>3. Enter measurements (in inches)</Typography>
                 <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Select Size (Optional)"
+                      helperText="Select a standard size if you are unsure about exact measurements"
+                      value={formData.size}
+                      onChange={(event) => {
+                        const nextSize = event.target.value;
+
+                        setFormData((prev) => ({
+                          ...prev,
+                          size: nextSize,
+                          customSizeNotes: nextSize === CUSTOM_SIZE_VALUE ? prev.customSizeNotes : "",
+                        }));
+                      }}
+                    >
+                      <MenuItem value="">No size selected</MenuItem>
+                      {sizeOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  {formData.size === CUSTOM_SIZE_VALUE ? (
+                    <Grid size={{ xs: 12 }}>
+                      <TextField
+                        fullWidth
+                        multiline
+                        minRows={2}
+                        label="Enter your measurements or size details"
+                        placeholder="Chest 40, Waist 34, Length 38"
+                        helperText={`Add details for custom size | ${Math.max(0, customSizeCharactersLeft)} characters left`}
+                        value={formData.customSizeNotes}
+                        inputProps={{ maxLength: CUSTOM_SIZE_NOTES_MAX_LENGTH }}
+                        onChange={(event) => updateField("customSizeNotes", event.target.value)}
+                      />
+                    </Grid>
+                  ) : null}
                   <Grid size={{ xs: 12, md: 4 }}>
                     <TextField
                       label="Bust"
@@ -581,7 +707,7 @@ export default function TailoringForm() {
                       fullWidth
                       multiline
                       minRows={2}
-                      placeholder="Agar koi extra nape ho to yahan likhein"
+                      placeholder="Add any extra measurements here"
                       value={formData.extraMeasurement}
                       onChange={(event) => updateField("extraMeasurement", event.target.value)}
                     />
@@ -593,7 +719,7 @@ export default function TailoringForm() {
             {activeStep === 3 ? (
               <Stack spacing={2.5}>
                 <FormControl>
-                  <FormLabel>4. Kapda kahan se aayega</FormLabel>
+                  <FormLabel>4. Fabric source</FormLabel>
                   <RadioGroup
                     value={formData.fabricSource}
                     onChange={(event) => updateFabricSource(event.target.value as FabricSource)}
@@ -632,6 +758,19 @@ export default function TailoringForm() {
                         );
                       })}
                     </Grid>
+                  </RadioGroup>
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel>Pickup/Drop Service</FormLabel>
+                  <RadioGroup
+                    value={formData.pickupDropOption}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, pickupDropOption: event.target.value as PickupDropOption }))}
+                  >
+                    <FormControlLabel value="self_visit" control={<Radio />} label="No Pickup (Self Visit)" />
+                    <FormControlLabel value="pickup_only" control={<Radio />} label={`Pickup Only (+INR ${DEFAULT_PICKUP_CHARGE})`} />
+                    <FormControlLabel value="drop_only" control={<Radio />} label={`Drop Only (+INR ${DEFAULT_DROP_CHARGE})`} />
+                    <FormControlLabel value="pickup_drop" control={<Radio />} label={`Pickup & Drop (+INR ${DEFAULT_PICKUP_CHARGE + DEFAULT_DROP_CHARGE})`} />
                   </RadioGroup>
                 </FormControl>
 
@@ -718,7 +857,7 @@ export default function TailoringForm() {
                     {!productsLoading && products.length > 0 ? (
                       <>
                         <Typography variant="body2" color="text.secondary">
-                          Neeche card me se kapda chune.
+                          Choose fabric from the cards below.
                         </Typography>
                         {selectedFabricProduct ? (
                           <Card
@@ -743,23 +882,23 @@ export default function TailoringForm() {
                               <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0 }}>
                                 <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
                                   <Typography variant="caption" color="primary.main" sx={{ fontWeight: 700, letterSpacing: 0.6 }}>
-                                    SELECTED KAPDA
+                                    SELECTED FABRIC
                                   </Typography>
                                   {isDashboardPrefilledSelection ? (
-                                    <Chip size="small" color="secondary" label="Dashboard se select" />
+                                    <Chip size="small" color="secondary" label="Selected from dashboard" />
                                   ) : null}
                                   {hasChangedFromPrefilledSelection ? (
-                                    <Chip size="small" variant="outlined" color="warning" label="Aapne selection badla" />
+                                    <Chip size="small" variant="outlined" color="warning" label="Selection changed" />
                                   ) : null}
                                 </Stack>
                                 {isDashboardPrefilledSelection ? (
                                   <Typography variant="caption" color="text.secondary">
-                                    Ye kapda dashboard se aaya hai. Chahein to badal sakte hain.
+                                    This fabric came from dashboard selection. You can change it.
                                   </Typography>
                                 ) : null}
                                 {hasChangedFromPrefilledSelection ? (
                                   <Typography variant="caption" color="text.secondary">
-                                    Aapka naya kapda selection order me use hoga.
+                                    Your new fabric selection will be used for this order.
                                   </Typography>
                                 ) : null}
                                 <Typography variant="h6">{selectedFabricProduct.name}</Typography>
@@ -778,14 +917,14 @@ export default function TailoringForm() {
                             </Stack>
                           </Card>
                         ) : (
-                          <Alert severity="info">Abhi kapda select nahi hai. Neeche se ek card chune.</Alert>
+                          <Alert severity="info">No fabric selected yet. Choose one card below.</Alert>
                         )}
                         {compareProducts.length > 0 ? (
                           <Card variant="outlined" sx={{ borderColor: "divider" }}>
                             <Stack spacing={1.5} sx={{ p: 2 }}>
                               <Stack direction="row" justifyContent="space-between" alignItems="center">
                                 <Typography variant="subtitle1" fontWeight={700}>
-                                  Kapda Compare
+                                  Fabric Compare
                                 </Typography>
                                 <Button size="small" color="inherit" onClick={() => setCompareProductIds([])}>
                                   Clear compare
@@ -839,7 +978,7 @@ export default function TailoringForm() {
                                       }}
                                     >
                                       <Typography color="text.secondary" textAlign="center" sx={{ px: 2 }}>
-                                        Side by side dekhne ke liye ek aur kapda compare karein.
+                                        Add one more fabric to compare side by side.
                                       </Typography>
                                     </Card>
                                   </Grid>
@@ -853,7 +992,7 @@ export default function TailoringForm() {
                             <Stack spacing={1.5} sx={{ p: 2 }}>
                               <Stack direction="row" justifyContent="space-between" alignItems="center">
                                 <Typography variant="subtitle1" fontWeight={700}>
-                                  Baad me dekhne ke liye save
+                                  Saved for later
                                 </Typography>
                                 <Button size="small" color="inherit" onClick={() => setSavedProductIds([])}>
                                   Clear saved
@@ -894,8 +1033,8 @@ export default function TailoringForm() {
                           <Grid size={{ xs: 12, md: 4 }}>
                             <TextField
                               fullWidth
-                              label="Kapda search"
-                              placeholder="Naam, type ya tag se search karein"
+                              label="Fabric search"
+                              placeholder="Search by name, type, or tag"
                               value={pickerFilters.query}
                               onChange={(event) => setPickerFilters((prev) => ({ ...prev, query: event.target.value }))}
                             />
@@ -908,7 +1047,7 @@ export default function TailoringForm() {
                               value={pickerFilters.type}
                               onChange={(event) => setPickerFilters((prev) => ({ ...prev, type: event.target.value }))}
                             >
-                              <MenuItem value="all">Sab type</MenuItem>
+                              <MenuItem value="all">All types</MenuItem>
                               {availableFabricTypes.map((type) => (
                                 <MenuItem key={type} value={type}>
                                   {type}
@@ -924,10 +1063,10 @@ export default function TailoringForm() {
                               value={pickerFilters.maxPrice}
                               onChange={(event) => setPickerFilters((prev) => ({ ...prev, maxPrice: event.target.value }))}
                             >
-                              <MenuItem value="1000">INR 1000 tak</MenuItem>
-                              <MenuItem value="1500">INR 1500 tak</MenuItem>
-                              <MenuItem value="2500">INR 2500 tak</MenuItem>
-                              <MenuItem value="5000">INR 5000 tak</MenuItem>
+                              <MenuItem value="1000">Up to INR 1000</MenuItem>
+                              <MenuItem value="1500">Up to INR 1500</MenuItem>
+                              <MenuItem value="2500">Up to INR 2500</MenuItem>
+                              <MenuItem value="5000">Up to INR 5000</MenuItem>
                             </TextField>
                           </Grid>
                           <Grid size={{ xs: 12, md: 3 }}>
@@ -939,15 +1078,15 @@ export default function TailoringForm() {
                               onChange={(event) => setPickerFilters((prev) => ({ ...prev, sortBy: event.target.value }))}
                             >
                               <MenuItem value="featured">Best</MenuItem>
-                              <MenuItem value="price-low">Rate: kam se zyada</MenuItem>
-                              <MenuItem value="price-high">Rate: zyada se kam</MenuItem>
-                              <MenuItem value="discount-first">Discount pehle</MenuItem>
+                              <MenuItem value="price-low">Price: low to high</MenuItem>
+                              <MenuItem value="price-high">Price: high to low</MenuItem>
+                              <MenuItem value="discount-first">Highest discount first</MenuItem>
                               <MenuItem value="rating-high">Top rating</MenuItem>
                             </TextField>
                           </Grid>
                         </Grid>
                         <Typography variant="caption" color="text.secondary">
-                          {filteredFabricProducts.length} kapda option dikh rahe hain.
+                          {filteredFabricProducts.length} fabric options found.
                         </Typography>
                         <Grid container spacing={2}>
                           {filteredFabricProducts.map((product) => {
@@ -1047,13 +1186,13 @@ export default function TailoringForm() {
                         </Grid>
                         {filteredFabricProducts.length === 0 ? (
                           <Alert severity="info">
-                            Is search ya filter me kapda nahi mila. Dusra type ya rate range chune.
+                            No fabric found for this search or filter. Try another type or price range.
                           </Alert>
                         ) : null}
                       </>
                     ) : null}
                     {!productsLoading && products.length === 0 ? (
-                      <Alert severity="info">Abhi RK Studio ka kapda available nahi hai.</Alert>
+                      <Alert severity="info">RK Studio fabric is not available right now.</Alert>
                     ) : null}
                   </Stack>
                 ) : null}
@@ -1068,6 +1207,22 @@ export default function TailoringForm() {
                     <Typography variant="body2">Category: {formData.category || "-"}</Typography>
                     <Typography variant="body2">Design: {formData.design || "-"}</Typography>
                     <Typography variant="body2">
+                      {formData.size
+                        ? formData.size === CUSTOM_SIZE_VALUE
+                          ? `Custom Size: ${normalizeSpace(formData.customSizeNotes) || "-"}`
+                          : `Size: ${formData.size}`
+                        : "Size: -"}
+                    </Typography>
+                    <Typography variant="body2">
+                      Pickup/Drop: {formData.pickupDropOption === "pickup_only"
+                        ? `Pickup Only (+INR ${DEFAULT_PICKUP_CHARGE})`
+                        : formData.pickupDropOption === "drop_only"
+                          ? `Drop Only (+INR ${DEFAULT_DROP_CHARGE})`
+                          : formData.pickupDropOption === "pickup_drop"
+                            ? `Pickup & Drop (+INR ${DEFAULT_PICKUP_CHARGE + DEFAULT_DROP_CHARGE})`
+                            : "No Pickup (Self Visit)"}
+                    </Typography>
+                    <Typography variant="body2">
                       Measurements: Bust {formData.bust || "-"}, Waist {formData.waist || "-"}, Length {formData.length || "-"}
                     </Typography>
                     <Typography variant="body2">Extra Measurement: {formData.extraMeasurement || "-"}</Typography>
@@ -1079,7 +1234,7 @@ export default function TailoringForm() {
                   </Stack>
                 </Alert>
                 <TextField
-                  label="Aapka naam"
+                  label="Your name"
                   value={formData.customerName}
                   onChange={(event) => updateField("customerName", event.target.value)}
                 />
@@ -1089,7 +1244,7 @@ export default function TailoringForm() {
                   onChange={(event) => updateField("phone", event.target.value)}
                 />
                 <Typography variant="caption" color="text.secondary">
-                  Koi dikkat ho to WhatsApp karein. Hum madad ke liye yahan hain.
+                  Need help? Contact us on WhatsApp.
                 </Typography>
               </Stack>
             ) : null}

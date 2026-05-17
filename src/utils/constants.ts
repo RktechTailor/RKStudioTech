@@ -1,7 +1,7 @@
 const envWhatsappNumber = (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "").replace(/\D/g, "");
 const envAdminPhone = (process.env.NEXT_PUBLIC_ADMIN_PHONE || "").replace(/\D/g, "");
 const envWhatsappChannelUrl = process.env.NEXT_PUBLIC_WHATSAPP_CHANNEL_URL || "";
-const defaultWhatsappMessage = "Hello RK Studio, mujhe silai / kapda ke bare me jankari chahiye.";
+const defaultWhatsappMessage = "Hello RK Studio, I need details about tailoring and fabric services.";
 const parseAmount = (value: string | undefined, fallback: number) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -19,8 +19,8 @@ export const RK_STUDIO = {
   city: "Narnaul",
   state: "Haryana",
   pinCode: "123001",
-  servingText: "Narnaul (123001) me seva",
-  homeVisitText: "Ghar aakar service milegi",
+  servingText: "Serving Narnaul (123001)",
+  homeVisitText: "Home visit service available",
   whatsappNumber: envWhatsappNumber,
   whatsappDisplay: process.env.NEXT_PUBLIC_WHATSAPP_DISPLAY || (envWhatsappNumber ? `+${envWhatsappNumber}` : ""),
   whatsappChatUrl:

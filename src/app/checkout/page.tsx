@@ -1,25 +1,26 @@
 "use client";
 
-import { Alert, Box, Button, Card, CardContent, CircularProgress, Divider, FormControl, FormControlLabel, Radio, RadioGroup, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Divider, FormControl, FormControlLabel, Radio, RadioGroup, Stack, TextField, Typography } from "@mui/material";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import Layout from "@/components/layout/Layout";
 import { OrderDetails } from "@/services/orderService";
-import { saveOrderToFirestore } from "@/services/orderService";
+import { useAuth } from "@/hooks/useAuth";
+import { getFirebaseAuth } from "@/services/firebase";
 import { trackAnalyticsEvent } from "@/utils/analytics";
 import { RK_STUDIO } from "@/utils/constants";
 import { removeFabricCartItem, removeFabricCartItems } from "@/utils/fabricCart";
 import { startRazorpayPayment, buildUpiPaymentLink } from "@/utils/payment";
 import { clearPendingPaymentOrder, readPendingPaymentOrder } from "@/utils/paymentSession";
+import { PricingBreakdown } from "@/utils/pricing";
 import { buildWhatsAppUrl } from "@/utils/whatsapp";
 
 type PaymentMethod = "razorpay" | "upi";
 
-const amountOptions = [100, 200, 300];
-
 export default function CheckoutPage() {
   const router = useRouter();
   const params = useSearchParams();
+  const { user } = useAuth();
   const token = params.get("token") || "";
 
   const [loading, setLoading] = useState(true);
@@ -27,7 +28,8 @@ export default function CheckoutPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("razorpay");
-  const [selectedAdvanceAmount, setSelectedAdvanceAmount] = useState(RK_STUDIO.payment.tailoringAdvanceDefault);
+  const [pricingBreakdown, setPricingBreakdown] = useState<PricingBreakdown | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(false);
   const [upiReference, setUpiReference] = useState("");
   const [upiStarted, setUpiStarted] = useState(false);
   const [pendingOrder, setPendingOrder] = useState<ReturnType<typeof readPendingPaymentOrder>>(null);
@@ -39,7 +41,7 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (!token) {
-      setError("Payment session nahi mili. Dobara order shuru karein.");
+      setError("Payment session not found. Please start your order again.");
       setLoading(false);
       return;
     }
@@ -47,21 +49,82 @@ export default function CheckoutPage() {
     const pending = readPendingPaymentOrder(token);
 
     if (!pending) {
-      setError("Payment session expire ho gayi. Dobara order shuru karein.");
+      setError("Payment session expired. Please start your order again.");
       setLoading(false);
       return;
     }
 
     setPendingOrder(pending);
-    if (pending.service === "tailoring") {
-      const withinRange = Math.min(
-        RK_STUDIO.payment.tailoringAdvanceMax,
-        Math.max(RK_STUDIO.payment.tailoringAdvanceMin, pending.amount),
-      );
-      setSelectedAdvanceAmount(withinRange);
-    }
     setLoading(false);
   }, [token]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    const recalculatePricing = async () => {
+      if (!pendingOrder) {
+        setPricingBreakdown(null);
+        return;
+      }
+
+      try {
+        setPricingLoading(true);
+        const pickupCharge = typeof pendingOrder.orderDetails?.pickup_charge === "number"
+          ? Math.max(0, pendingOrder.orderDetails.pickup_charge)
+          : 0;
+        const dropCharge = typeof pendingOrder.orderDetails?.drop_charge === "number"
+          ? Math.max(0, pendingOrder.orderDetails.drop_charge)
+          : 0;
+
+        const response = await fetch("/api/pricing/calculate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            service: pendingOrder.service,
+            paymentType: pendingOrder.paymentType,
+            productId: pendingOrder.pricingInput?.productId || pendingOrder.productId,
+            pricingType: pendingOrder.pricingInput?.pricingType,
+            quantityOrMeter: pendingOrder.pricingInput?.quantityOrMeter,
+            pickupCharge: pendingOrder.pricingInput?.pickupCharge ?? pickupCharge,
+            dropCharge: pendingOrder.pricingInput?.dropCharge ?? dropCharge,
+            lineItems: pendingOrder.pricingInput?.lineItems,
+          }),
+        });
+
+        const payload = (await response.json()) as {
+          breakdown?: PricingBreakdown;
+          error?: string;
+        };
+
+        if (!response.ok || !payload.breakdown) {
+          throw new Error(payload.error || "Unable to calculate pricing.");
+        }
+
+        if (!ignore) {
+          setPricingBreakdown(payload.breakdown);
+        }
+      } catch (pricingError) {
+        if (!ignore) {
+          const message = pricingError instanceof Error
+            ? pricingError.message
+            : "Unable to calculate pricing.";
+          setError(message);
+        }
+      } finally {
+        if (!ignore) {
+          setPricingLoading(false);
+        }
+      }
+    };
+
+    void recalculatePricing();
+
+    return () => {
+      ignore = true;
+    };
+  }, [pendingOrder]);
 
   useEffect(() => {
     let ignore = false;
@@ -108,24 +171,44 @@ export default function CheckoutPage() {
   }, [allowUpiFallback]);
 
   const finalAmount = useMemo(() => {
-    if (!pendingOrder) {
+    if (!pendingOrder || !pricingBreakdown) {
       return 0;
     }
 
-    if (pendingOrder.service === "tailoring") {
-      return selectedAdvanceAmount;
+    if (pendingOrder.paymentType === "advance") {
+      return pricingBreakdown.advanceAmount;
     }
 
-    return pendingOrder.amount;
-  }, [pendingOrder, selectedAdvanceAmount]);
+    return pricingBreakdown.finalPayable;
+  }, [pendingOrder, pricingBreakdown]);
+
+  const pickupChargeFromOrder = useMemo(() => {
+    if (!pendingOrder || typeof pendingOrder.orderDetails?.pickup_charge !== "number") {
+      return 0;
+    }
+
+    return Math.max(0, pendingOrder.orderDetails.pickup_charge);
+  }, [pendingOrder]);
+
+  const dropChargeFromOrder = useMemo(() => {
+    if (!pendingOrder || typeof pendingOrder.orderDetails?.drop_charge !== "number") {
+      return 0;
+    }
+
+    return Math.max(0, pendingOrder.orderDetails.drop_charge);
+  }, [pendingOrder]);
 
   const paymentLabel = useMemo(() => {
     if (!pendingOrder) {
       return "";
     }
 
-    return pendingOrder.paymentType === "advance" ? "Advance De Diya" : "Pura De Diya";
+    return pendingOrder.paymentType === "advance" ? "Advance Paid" : "Paid in Full";
   }, [pendingOrder]);
+
+  const hasValidPaymentSession = useMemo(() => {
+    return Boolean(token && pendingOrder);
+  }, [pendingOrder, token]);
 
   const fabricPricePerMeter =
     (pendingOrder?.service === "fabric" || pendingOrder?.service === "dupatta")
@@ -166,40 +249,92 @@ export default function CheckoutPage() {
 
   const validateAmount = () => {
     if (!pendingOrder) {
-      return "Payment session missing hai.";
+      return "Payment session is missing.";
     }
 
-    if (pendingOrder.service === "tailoring") {
-      if (
-        selectedAdvanceAmount < RK_STUDIO.payment.tailoringAdvanceMin ||
-        selectedAdvanceAmount > RK_STUDIO.payment.tailoringAdvanceMax
-      ) {
-        return `Advance ₹${RK_STUDIO.payment.tailoringAdvanceMin} se ₹${RK_STUDIO.payment.tailoringAdvanceMax} ke beech hona chahiye.`;
-      }
+    if (!pricingBreakdown) {
+      return "Pricing summary is not available. Please try again.";
     }
 
-    if (pendingOrder.service === "fabric" && finalAmount !== pendingOrder.amount) {
-      return "Kapda ke daam galat hain.";
+    if (pricingBreakdown.totalPrice <= 0 || pricingBreakdown.finalPayable <= 0) {
+      return "Invalid pricing detected. Please review product details and try again.";
+    }
+
+    if (finalAmount <= 0) {
+      return "Invalid payable amount.";
     }
 
     return "";
   };
 
+  const getAuthHeaders = async (): Promise<Record<string, string>> => {
+    if (user?.provider === "mock") {
+      return {
+        Authorization: `Bearer mock:${user.uid}:${user.role || "user"}`,
+      };
+    }
+
+    const auth = getFirebaseAuth();
+    const tokenValue = await auth?.currentUser?.getIdToken();
+
+    if (!tokenValue) {
+      return {};
+    }
+
+    return {
+      Authorization: `Bearer ${tokenValue}`,
+    };
+  };
+
   const handleFinalizeOrder = async (paymentId: string) => {
-    if (!pendingOrder || orderConfirmed) {
+    if (!pendingOrder || !pricingBreakdown || orderConfirmed) {
       return;
     }
 
-    await saveOrderToFirestore({
-      userId: pendingOrder.userId,
-      service: pendingOrder.service,
-      productId: pendingOrder.productId,
-      orderDetails: pendingOrder.orderDetails as OrderDetails,
-      paymentStatus: "paid",
-      paymentType: pendingOrder.paymentType,
-      amountPaid: finalAmount,
-      paymentId,
+    const enrichedOrderDetails: OrderDetails = {
+      ...(pendingOrder.orderDetails as OrderDetails),
+      pricing_type: pricingBreakdown.pricingType,
+      quantity_or_meter: pricingBreakdown.quantityOrMeter,
+      market_price: pricingBreakdown.marketPrice,
+      total_price: pricingBreakdown.totalPrice,
+      discount_percentage: pricingBreakdown.discountPercentage,
+      discount_amount: pricingBreakdown.discountAmount,
+      final_price: pricingBreakdown.finalPrice,
+      pickup_charge: pricingBreakdown.pickupCharge,
+      drop_charge: pricingBreakdown.dropCharge,
+      pickup_drop_charge: pricingBreakdown.pickupDropCharge,
+      final_payable: pricingBreakdown.finalPayable,
+      advance_amount: pricingBreakdown.advanceAmount,
+      remaining_amount: pricingBreakdown.remainingAmount,
+    };
+
+    const finalizeResponse = await fetch("/api/orders/finalize", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        userId: pendingOrder.userId,
+        service: pendingOrder.service,
+        productId: pendingOrder.productId,
+        orderDetails: enrichedOrderDetails,
+        paymentType: pendingOrder.paymentType,
+        amountPaid: finalAmount,
+        paymentId,
+        pricingInput: {
+          ...pendingOrder.pricingInput,
+          pickupCharge: pendingOrder.pricingInput?.pickupCharge ?? pickupChargeFromOrder,
+          dropCharge: pendingOrder.pricingInput?.dropCharge ?? dropChargeFromOrder,
+        },
+      }),
     });
+
+    const finalizePayload = (await finalizeResponse.json()) as { error?: string };
+
+    if (!finalizeResponse.ok) {
+      throw new Error(finalizePayload.error || "Could not finalize order.");
+    }
 
     void trackAnalyticsEvent("payment_success", {
       service: pendingOrder.service,
@@ -208,9 +343,20 @@ export default function CheckoutPage() {
       value: finalAmount,
     });
 
-    const whatsappDetails = [...pendingOrder.whatsappDetails, `Payment: ${paymentLabel} (INR ${finalAmount})`];
+    const whatsappDetails = [
+      ...pendingOrder.whatsappDetails,
+      `Market Price: INR ${pricingBreakdown.marketPrice}`,
+      `Discount: INR ${pricingBreakdown.discountAmount} (${pricingBreakdown.discountPercentage}%)`,
+      `Final Price: INR ${pricingBreakdown.finalPrice}`,
+      `Pickup Charge: INR ${pricingBreakdown.pickupCharge}`,
+      `Drop Charge: INR ${pricingBreakdown.dropCharge}`,
+      `Total Payable: INR ${pricingBreakdown.finalPayable}`,
+      `Advance: INR ${pricingBreakdown.advanceAmount}`,
+      `Remaining: INR ${pricingBreakdown.remainingAmount}`,
+      `Payment: ${paymentLabel} (INR ${finalAmount})`,
+    ];
 
-    setSuccess("Payment safal ho gayi. Hum WhatsApp par contact karenge.");
+    setSuccess("Payment successful. We will contact you on WhatsApp.");
     setOrderConfirmed(true);
 
     if (pendingOrder.service === "fabric" || pendingOrder.service === "dupatta") {
@@ -251,7 +397,7 @@ export default function CheckoutPage() {
     }
 
     if (!pendingOrder) {
-      setError("Payment session missing hai.");
+      setError("Payment session is missing.");
       return;
     }
 
@@ -261,7 +407,7 @@ export default function CheckoutPage() {
       if (paymentMethod === "razorpay") {
         const razorpayPayment = await startRazorpayPayment({
           amount: finalAmount,
-          description: `${pendingOrder.service === "tailoring" ? "Silai advance" : "Kapda full payment"} - RK Studio`,
+          description: `${pendingOrder.service === "tailoring" ? "Tailoring advance" : "Fabric full payment"} - RK Studio`,
           customerName: pendingOrder.customerName,
           customerPhone: pendingOrder.customerPhone,
         });
@@ -284,7 +430,7 @@ export default function CheckoutPage() {
         };
 
         if (!verifyResponse.ok || !verifyPayload.verified) {
-          throw new Error(verifyPayload.error || "Payment verify nahi ho payi. Dobara payment karein.");
+          throw new Error(verifyPayload.error || "Payment verification failed. Please try payment again.");
         }
 
         await handleFinalizeOrder(razorpayPayment.razorpay_payment_id);
@@ -292,7 +438,7 @@ export default function CheckoutPage() {
       }
 
       if (!allowUpiFallback) {
-        setError("UPI fallback production me disabled hai. Razorpay use karein.");
+        setError("UPI fallback is disabled in this environment. Please use Razorpay.");
         return;
       }
 
@@ -303,18 +449,18 @@ export default function CheckoutPage() {
         });
         window.location.href = upiLink;
         setUpiStarted(true);
-        setError("UPI payment ke baad UTR/reference dalein aur fir se Confirm karein.");
+        setError("After UPI payment, enter the UTR/reference and confirm again.");
         return;
       }
 
       if (!upiReference.trim()) {
-        setError("Payment confirm karne ke liye UPI UTR/reference dalein.");
+        setError("Please enter UPI UTR/reference to confirm payment.");
         return;
       }
 
       await handleFinalizeOrder(`upi-${upiReference.trim()}`);
     } catch (paymentError) {
-      const message = paymentError instanceof Error ? paymentError.message : "Payment fail ho gayi. Dobara koshish karein.";
+      const message = paymentError instanceof Error ? paymentError.message : "Payment failed. Please try again.";
       setError(message);
     } finally {
       setSubmitting(false);
@@ -327,10 +473,10 @@ export default function CheckoutPage() {
     }
 
     if (pendingOrder.service === "tailoring") {
-      return "Silai order confirm karne ke liye advance de";
+      return "Pay advance to confirm your tailoring order";
     }
 
-    return "Order confirm karne ke liye full payment de";
+    return "Pay full amount to confirm your order";
   };
 
   if (loading) {
@@ -338,7 +484,7 @@ export default function CheckoutPage() {
       <Layout>
         <Stack alignItems="center" py={10} spacing={1.5}>
           <CircularProgress />
-          <Typography color="text.secondary">Payment taiyar ho rahi hai...</Typography>
+          <Typography color="text.secondary">Preparing payment...</Typography>
         </Stack>
       </Layout>
     );
@@ -347,7 +493,7 @@ export default function CheckoutPage() {
   return (
     <Layout>
       <Stack spacing={3}>
-        <Typography variant="h3">Payment karein</Typography>
+        <Typography variant="h3">Complete Payment</Typography>
 
         <Card>
           <CardContent>
@@ -356,39 +502,18 @@ export default function CheckoutPage() {
 
               {!paymentConfigLoading && !razorpayEnabled ? (
                 <Alert severity="warning">
-                  Online card payment is temporarily unavailable. Please continue with UPI payment.
+                  {allowUpiFallback
+                    ? "Online card payment is temporarily unavailable. Please continue with UPI payment."
+                    : "Online card payment is temporarily unavailable. Please try again later."}
                 </Alert>
-              ) : null}
-
-              {pendingOrder?.service === "tailoring" ? (
-                <FormControl>
-                  <Typography variant="body2" color="text.secondary" mb={1}>
-                    Advance amount chune:
-                  </Typography>
-                  <RadioGroup
-                    value={selectedAdvanceAmount}
-                    onChange={(event) => setSelectedAdvanceAmount(Number(event.target.value))}
-                  >
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-                      {amountOptions.map((amount) => (
-                        <FormControlLabel
-                          key={amount}
-                          value={amount}
-                          control={<Radio />}
-                          label={`INR ${amount}`}
-                        />
-                      ))}
-                    </Stack>
-                  </RadioGroup>
-                </FormControl>
               ) : null}
 
               <Divider />
 
               <Stack spacing={1}>
-                <Typography variant="subtitle1">Order ki jankari</Typography>
+                <Typography variant="subtitle1">Order Summary</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Service: {pendingOrder?.service === "tailoring" ? "Silai" : pendingOrder?.service === "dupatta" ? "Suit" : "Kapda"}
+                  Service: {pendingOrder?.service === "tailoring" ? "Tailoring" : pendingOrder?.service === "dupatta" ? "Suit" : "Fabric"}
                 </Typography>
                 {(pendingOrder?.service === "fabric" || pendingOrder?.service === "dupatta") && fabricPricePerMeter !== null && fabricSelectedMeter !== null ? (
                   <Typography variant="body2" color="text.secondary">
@@ -403,16 +528,70 @@ export default function CheckoutPage() {
                 <Typography variant="body2" color="text.secondary">
                   Payment Type: {pendingOrder?.paymentType === "advance" ? "Advance" : "Full"}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Dene wali rakam: INR {finalAmount}
-                </Typography>
+                {pricingLoading ? <Typography variant="body2" color="text.secondary">Calculating pricing...</Typography> : null}
+
+                {pricingBreakdown ? (
+                  <Card variant="outlined" sx={{ mt: 1, borderColor: "success.light", bgcolor: "#F8FFFB" }}>
+                    <CardContent>
+                      <Stack spacing={1}>
+                        <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+                          <Typography variant="body2" color="text.secondary">Market Price:</Typography>
+                          <Typography variant="body2" sx={{ textDecoration: pricingBreakdown.discountAmount > 0 ? "line-through" : "none", color: "text.disabled" }}>
+                            INR {pricingBreakdown.marketPrice}
+                          </Typography>
+                          {pricingBreakdown.discountAmount > 0 ? (
+                            <Chip label={`${pricingBreakdown.discountPercentage}% OFF`} size="small" color="success" />
+                          ) : null}
+                        </Stack>
+
+                        <Typography variant="body2" color="success.main">
+                          Discount: -INR {pricingBreakdown.discountAmount} ({pricingBreakdown.discountPercentage}% OFF)
+                        </Typography>
+
+                        <Typography variant="h6" sx={{ fontWeight: 800, color: "primary.main" }}>
+                          Final Price: INR {pricingBreakdown.finalPrice}
+                        </Typography>
+
+                        {(pricingBreakdown.pickupCharge > 0 || pricingBreakdown.dropCharge > 0) ? (
+                          <Typography variant="body2" color="text.secondary">
+                            Pickup/Drop Charges: INR {pricingBreakdown.pickupDropCharge}
+                          </Typography>
+                        ) : null}
+
+                        <Typography variant="h6" sx={{ fontWeight: 800, color: "success.main" }}>
+                          Total Payable: INR {pricingBreakdown.finalPayable}
+                        </Typography>
+
+                        <Typography variant="body2" color="text.secondary">
+                          Pay Now: INR {pricingBreakdown.advanceAmount}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Pay after delivery: INR {pricingBreakdown.remainingAmount}
+                        </Typography>
+                        <Typography variant="caption" color="success.main">
+                          You saved INR {pricingBreakdown.discountAmount}
+                        </Typography>
+
+                        {pricingBreakdown.pickupDropCharge > 0 ? (
+                          <Typography variant="caption" color="info.main">
+                            Pickup/Drop charge included
+                          </Typography>
+                        ) : null}
+
+                        <Typography variant="body2" color="text.secondary">
+                          Amount to pay now: INR {finalAmount}
+                        </Typography>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                ) : null}
               </Stack>
 
               <Divider />
 
               <FormControl>
                 <Typography variant="body2" color="text.secondary" mb={1}>
-                  Payment ka tareeka
+                  Payment Method
                 </Typography>
                 <RadioGroup
                   value={paymentMethod}
@@ -436,8 +615,8 @@ export default function CheckoutPage() {
               {!razorpayEnabled ? (
                 <Alert severity="info">
                   {allowUpiFallback
-                    ? "Razorpay abhi setup nahi hai. Filhal UPI mode chalu hai."
-                    : "Razorpay setup missing hai. Production payment ke liye Razorpay configure karein."}
+                    ? "Razorpay is not configured right now. UPI mode is active."
+                    : "Razorpay setup is missing. Configure Razorpay for production payments."}
                 </Alert>
               ) : null}
 
@@ -456,7 +635,7 @@ export default function CheckoutPage() {
               ) : null}
 
               <Typography variant="caption" color="text.secondary">
-                Koi dikkat ho to WhatsApp karein. Hum madad ke liye yahan hain.
+                Need help? Contact us on WhatsApp.
               </Typography>
 
               {success ? <Alert severity="success">{success}</Alert> : null}
@@ -464,10 +643,14 @@ export default function CheckoutPage() {
 
               <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
                 <Button variant="outlined" onClick={() => router.back()} disabled={submitting}>
-                  Peeche
+                  Back
                 </Button>
-                <Button variant="contained" onClick={handlePayAndConfirm} disabled={submitting || orderConfirmed}>
-                  {submitting ? "Process ho raha hai..." : "Pay aur Confirm karein"}
+                <Button
+                  variant="contained"
+                  onClick={handlePayAndConfirm}
+                  disabled={submitting || orderConfirmed || !hasValidPaymentSession}
+                >
+                  {submitting ? "Processing..." : "Pay and Confirm"}
                 </Button>
                 {success && whatsappUrl ? (
                   <Button
@@ -475,7 +658,7 @@ export default function CheckoutPage() {
                     color="success"
                     onClick={() => window.open(whatsappUrl, "_blank", "noopener,noreferrer")}
                   >
-                    WhatsApp dobara kholein
+                    Open WhatsApp Again
                   </Button>
                 ) : null}
               </Stack>

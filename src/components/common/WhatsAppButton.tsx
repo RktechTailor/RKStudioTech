@@ -6,12 +6,12 @@ export default function WhatsAppButton() {
   const href = RK_STUDIO.whatsappChatUrl;
 
   return (
-    <Tooltip title="WhatsApp par bat karein" arrow>
+    <Tooltip title="Chat on WhatsApp" arrow>
       <Fab
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label="WhatsApp par bat karein"
+        aria-label="Chat on WhatsApp"
         sx={{
           position: "fixed",
           right: 20,

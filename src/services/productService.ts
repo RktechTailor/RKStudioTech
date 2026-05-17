@@ -1,12 +1,17 @@
 import {
   collection,
+  DocumentData,
   deleteDoc,
+  getDocs,
   doc,
+  getDoc,
   limit,
   onSnapshot,
   orderBy,
+  QueryDocumentSnapshot,
   query,
   serverTimestamp,
+  startAfter,
   setDoc,
   Timestamp,
   updateDoc,
@@ -22,6 +27,11 @@ export type CatalogProduct = {
   id: string;
   name: string;
   price: number;
+  marketPrice: number;
+  pricingType: "meter" | "piece";
+  pricePerUnit: number;
+  discountPercentage: number;
+  advancePercentage: number;
   productType: "fabric" | "piece";
   type: string;
   category: ProductCategory;
@@ -38,6 +48,11 @@ export type CatalogProduct = {
 type ProductInput = {
   name: string;
   price: number;
+  marketPrice?: number;
+  pricingType?: "meter" | "piece";
+  pricePerUnit?: number;
+  discountPercentage?: number;
+  advancePercentage?: number;
   productType?: "fabric" | "piece";
   type: string;
   category: ProductCategory;
@@ -52,6 +67,34 @@ const toProduct = (id: string, data: Partial<CatalogProduct>): CatalogProduct =>
   id,
   name: data.name || "Untitled product",
   price: typeof data.price === "number" ? data.price : Number(data.price || 0),
+  marketPrice:
+    typeof data.marketPrice === "number"
+      ? data.marketPrice
+      : typeof data.price === "number"
+        ? data.price
+        : Number(data.price || 0),
+  pricingType:
+    data.pricingType === "meter" || data.pricingType === "piece"
+      ? data.pricingType
+      : data.productType === "fabric"
+        ? "meter"
+        : "piece",
+  pricePerUnit:
+    typeof data.pricePerUnit === "number"
+      ? data.pricePerUnit
+      : typeof data.price === "number"
+        ? data.price
+        : Number(data.price || 0),
+  discountPercentage:
+    typeof data.discountPercentage === "number"
+      ? data.discountPercentage
+      : typeof data.discountPercent === "number"
+        ? data.discountPercent
+        : 5,
+  advancePercentage:
+    typeof data.advancePercentage === "number"
+      ? data.advancePercentage
+      : 20,
   productType:
     data.productType === "fabric" || data.productType === "piece"
       ? data.productType
@@ -85,12 +128,36 @@ const dummyCatalogProducts: CatalogProduct[] = [...fabricProducts.slice(0, 3), .
     suggestion: product.suggestion,
     discountPercent: product.discountPercent,
     rating: product.rating,
+    pricingType: product.productType === "fabric" ? "meter" : "piece",
+    pricePerUnit: product.price,
+    marketPrice: product.price,
+    discountPercentage: typeof product.discountPercent === "number" ? product.discountPercent : 5,
+    advancePercentage: 20,
     createdAt: null,
   }),
 );
 
 const byNewestFallback = (a: CatalogProduct, b: CatalogProduct) => a.id.localeCompare(b.id);
 const allowMockCatalogFallback = process.env.NODE_ENV !== "production";
+
+export type ProductPageCursor = QueryDocumentSnapshot<DocumentData> | null;
+
+export type ProductPageResult = {
+  products: CatalogProduct[];
+  cursor: ProductPageCursor;
+  hasMore: boolean;
+};
+
+const byCreatedAtDesc = (a: CatalogProduct, b: CatalogProduct) => {
+  const aMillis = a.createdAt?.toMillis?.() ?? 0;
+  const bMillis = b.createdAt?.toMillis?.() ?? 0;
+
+  if (aMillis === bMillis) {
+    return a.id.localeCompare(b.id);
+  }
+
+  return bMillis - aMillis;
+};
 
 export const uploadProductImage = async (file: File) => {
   const storage = getFirebaseStorage();
@@ -137,6 +204,23 @@ export const updateProduct = async (id: string, input: ProductInput) => {
   });
 };
 
+export const getProductById = async (id: string): Promise<CatalogProduct | null> => {
+  const db = getFirebaseDb();
+
+  if (!db) {
+    return dummyCatalogProducts.find((product) => product.id === id) || null;
+  }
+
+  const productRef = doc(db, "products", id);
+  const productSnap = await getDoc(productRef);
+
+  if (!productSnap.exists()) {
+    return null;
+  }
+
+  return toProduct(productSnap.id, productSnap.data() as Partial<CatalogProduct>);
+};
+
 export const removeProduct = async (id: string) => {
   const db = getFirebaseDb();
 
@@ -169,13 +253,20 @@ export const subscribeToAllProducts = (
 
       onProducts(
         firestoreProducts.length
-          ? firestoreProducts
+          ? firestoreProducts.sort(byCreatedAtDesc)
           : allowMockCatalogFallback
             ? [...dummyCatalogProducts].sort(byNewestFallback)
             : [],
       );
     },
-    (error) => onError?.(error as Error),
+    (error) => {
+      if (allowMockCatalogFallback) {
+        onProducts([...dummyCatalogProducts].sort(byNewestFallback));
+        return;
+      }
+
+      onError?.(error as Error);
+    },
   );
 };
 
@@ -194,7 +285,6 @@ export const subscribeToProductsByCategory = (
   const productsQuery = query(
     collection(db, "products"),
     where("category", "==", category),
-    orderBy("createdAt", "desc"),
     limit(100),
   );
 
@@ -207,12 +297,72 @@ export const subscribeToProductsByCategory = (
 
       onProducts(
         firestoreProducts.length
-          ? firestoreProducts
+          ? firestoreProducts.sort(byCreatedAtDesc)
           : allowMockCatalogFallback
             ? dummyCatalogProducts.filter((product) => product.category === category)
             : [],
       );
     },
-    (error) => onError?.(error as Error),
+    (error) => {
+      if (allowMockCatalogFallback) {
+        onProducts(dummyCatalogProducts.filter((product) => product.category === category));
+        return;
+      }
+
+      onError?.(error as Error);
+    },
   );
+};
+
+export const getProductsByCategoryPage = async (
+  category: ProductCategory,
+  pageSize = 24,
+  cursor: ProductPageCursor = null,
+): Promise<ProductPageResult> => {
+  const db = getFirebaseDb();
+
+  if (!db) {
+    const all = dummyCatalogProducts.filter((product) => product.category === category);
+    const startIndex = 0;
+    const endIndex = Math.min(startIndex + pageSize, all.length);
+
+    return {
+      products: all.slice(startIndex, endIndex),
+      cursor: null,
+      hasMore: endIndex < all.length,
+    };
+  }
+
+  const productsQuery = cursor
+    ? query(
+      collection(db, "products"),
+      where("category", "==", category),
+      startAfter(cursor),
+      limit(pageSize),
+    )
+    : query(
+      collection(db, "products"),
+      where("category", "==", category),
+      limit(pageSize),
+    );
+
+  const snapshot = await getDocs(productsQuery);
+  const products = snapshot.docs.map((productDoc) =>
+    toProduct(productDoc.id, productDoc.data() as Partial<CatalogProduct>),
+  );
+  const nextCursor = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : cursor;
+
+  if (!products.length && allowMockCatalogFallback) {
+    return {
+      products: dummyCatalogProducts.filter((product) => product.category === category),
+      cursor: null,
+      hasMore: false,
+    };
+  }
+
+  return {
+    products,
+    cursor: nextCursor,
+    hasMore: snapshot.docs.length === pageSize,
+  };
 };

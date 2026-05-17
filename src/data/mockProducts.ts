@@ -28,7 +28,7 @@ export const serviceCategories: ServiceCategory[] = [
   {
     id: "tailoring",
     title: "Tailoring",
-    description: "Ladies aur gents silai, fitting aur custom design.",
+    description: "Tailoring, fitting, and custom design for everyone.",
     image:
       "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=80",
     href: "/tailoring",
@@ -36,7 +36,7 @@ export const serviceCategories: ServiceCategory[] = [
   {
     id: "fabric",
     title: "Fabric",
-    description: "Premium cotton, rayon, silk blend aur festive options.",
+    description: "Premium cotton, rayon, silk blend, and festive options.",
     image:
       "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=80",
     href: "/fabric",
@@ -44,7 +44,7 @@ export const serviceCategories: ServiceCategory[] = [
   {
     id: "dupatta",
     title: "Dupatta",
-    description: "Daily wear se shaadi collection tak stylish dupatte.",
+    description: "Stylish dupattas from daily wear to wedding collections.",
     image:
       "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=900&q=80",
     href: "/dupatta",
@@ -52,6 +52,21 @@ export const serviceCategories: ServiceCategory[] = [
 ];
 
 export const fabricProducts: Product[] = [
+  {
+    id: "fab-test-1",
+    name: "Test Product - Premium Cotton Check",
+    price: 1099,
+    productType: "fabric",
+    image:
+      "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?auto=format&fit=crop&w=900&q=80",
+    type: "cotton",
+    description: "Dummy testing fabric product with premium cotton check pattern.",
+    category: "fabric",
+    inStock: true,
+    tag: "test",
+    discountPercent: 5,
+    rating: 4.3,
+  },
   {
     id: "fab-1",
     name: "Soft Cotton Floral",

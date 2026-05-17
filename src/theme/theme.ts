@@ -26,7 +26,7 @@ const theme = createTheme({
   },
   spacing: 8,
   typography: {
-    fontFamily: "'Poppins', 'Inter', 'Segoe UI', sans-serif",
+    fontFamily: "'Work Sans', 'Segoe UI', sans-serif",
     h1: {
       fontWeight: 700,
       lineHeight: 1.2,

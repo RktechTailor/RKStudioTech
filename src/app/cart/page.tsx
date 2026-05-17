@@ -77,6 +77,11 @@ export default function CartPage() {
       productId: item.productId,
       amount: item.total_price,
       paymentType: "full",
+      pricingInput: {
+        productId: item.productId,
+        pricingType: item.product_type === "fabric" ? "meter" : "piece",
+        quantityOrMeter: item.selected_quantity,
+      },
       whatsappDetails: [
         `Product: ${item.name}`,
         `Price per ${item.unit_label}: INR ${item.price_per_unit}`,
@@ -116,11 +121,22 @@ export default function CartPage() {
       orderDetails: {
         checkout_mode: "cart_all",
         cart_item_ids: items.map((item) => item.id),
+        cart_items: items.map((item) => ({
+          productId: item.productId,
+          quantityOrMeter: item.selected_quantity,
+          pricingType: item.product_type === "fabric" ? "meter" : "piece",
+        })),
         item_count: items.length,
         total_price: subtotal,
       },
       amount: subtotal,
       paymentType: "full",
+      pricingInput: {
+        lineItems: items.map((item) => ({
+          productId: item.productId,
+          quantityOrMeter: item.selected_quantity,
+        })),
+      },
       whatsappDetails: [
         `Combined cart checkout`,
         `Items: ${items.length}`,
@@ -150,7 +166,7 @@ export default function CartPage() {
         </Stack>
 
         {items.length === 0 ? (
-          <Alert severity="info">Cart khali hai. Fabric page se products add karein.</Alert>
+          <Alert severity="info">Your cart is empty. Add products from the fabric page.</Alert>
         ) : null}
 
         {items.length > 0 ? (

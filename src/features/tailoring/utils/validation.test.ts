@@ -4,6 +4,8 @@ import { getTailoringValidationMessage } from "@/features/tailoring/utils/valida
 const baseFormData = {
   category: "kurti",
   design: "simple",
+  size: "",
+  customSizeNotes: "",
   bust: "36",
   waist: "32",
   length: "44",
@@ -17,6 +19,19 @@ const baseFormData = {
 };
 
 describe("getTailoringValidationMessage", () => {
+  it("returns custom size validation error when custom is selected without notes", () => {
+    const message = getTailoringValidationMessage({
+      activeStep: 2,
+      formData: {
+        ...baseFormData,
+        size: "Custom Size",
+        customSizeNotes: "   ",
+      },
+    });
+
+    expect(message).toBe("Enter custom size details.");
+  });
+
   it("returns measurement validation error on step 2 when required values are missing", () => {
     const message = getTailoringValidationMessage({
       activeStep: 2,
@@ -26,7 +41,20 @@ describe("getTailoringValidationMessage", () => {
       },
     });
 
-    expect(message).toBe("Zaroori nape bharein.");
+    expect(message).toBe("Enter required measurements.");
+  });
+
+  it("returns validation error when custom size details exceed maximum length", () => {
+    const message = getTailoringValidationMessage({
+      activeStep: 2,
+      formData: {
+        ...baseFormData,
+        size: "Custom Size",
+        customSizeNotes: "a".repeat(501),
+      },
+    });
+
+    expect(message).toBe("Keep custom size details under 500 characters.");
   });
 
   it("returns rkstudio product selection validation error", () => {
@@ -39,7 +67,7 @@ describe("getTailoringValidationMessage", () => {
       },
     });
 
-    expect(message).toBe("RK Studio ka kapda chune.");
+    expect(message).toBe("Select a fabric from RK Studio.");
   });
 
   it("returns empty string when step data is valid", () => {

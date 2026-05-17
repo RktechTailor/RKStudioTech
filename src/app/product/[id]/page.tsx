@@ -53,14 +53,14 @@ export default function ProductDetailsPage() {
     [params.id, products],
   );
 
-  const discountPercent = product?.discountPercent || 0;
+  const discountPercentage = product?.discountPercentage ?? 5;
+  const pricePerUnit = product?.pricePerUnit ?? product?.price ?? 0;
+  const marketPrice = product?.marketPrice ?? product?.price ?? 0;
   const discountedPrice = product
-    ? discountPercent > 0
-      ? Math.max(0, Math.round(product.price * (1 - discountPercent / 100)))
-      : product.price
+    ? Math.max(0, Math.round(pricePerUnit * (1 - discountPercentage / 100)))
     : 0;
 
-  const isMeterBased = product?.productType === "fabric";
+  const isMeterBased = (product?.pricingType || (product?.productType === "fabric" ? "meter" : "piece")) === "meter";
   const unitLabel = isMeterBased ? "meter" : "piece";
   const helperText = isMeterBased
     ? "Kurti ke liye approx 2.5 meter chahiye"
@@ -111,7 +111,11 @@ export default function ProductDetailsPage() {
         image: product.image,
         category: product.category,
         product_type: product.productType,
+        pricing_type: isMeterBased ? "meter" : "piece",
         price_per_unit: discountedPrice,
+        market_price: marketPrice,
+        discount_percentage: discountPercentage,
+        advance_percentage: product.advancePercentage ?? 20,
         selected_quantity: selectedQuantity,
         description: product.description,
         type: product.type,
@@ -126,10 +130,10 @@ export default function ProductDetailsPage() {
         value: totalPrice,
       });
 
-      setNotice("Product cart me add ho gaya.");
+      setNotice("Product added to cart.");
       router.push("/cart");
     } catch {
-      setError("Cart me add nahi ho paya. Dobara koshish karein.");
+      setError("Could not add product to cart. Please try again.");
     }
   };
 
@@ -165,12 +169,12 @@ export default function ProductDetailsPage() {
         {loading ? (
           <Stack alignItems="center" py={8} spacing={1.5}>
             <CircularProgress />
-            <Typography color="text.secondary">Product details load ho rahi hain...</Typography>
+            <Typography color="text.secondary">Loading product details...</Typography>
           </Stack>
         ) : null}
 
         {!loading && !product ? (
-          <Alert severity="warning">Product nahi mila. Please dobara list se select karein.</Alert>
+          <Alert severity="warning">Product not found. Please select from the list again.</Alert>
         ) : null}
 
         {!loading && product ? (
@@ -196,13 +200,13 @@ export default function ProductDetailsPage() {
                 </Typography>
 
                 <Stack direction="row" spacing={1} alignItems="center">
-                  <Chip label={product.inStock === false ? "Nahi hai" : "Hai"} color={product.inStock === false ? "default" : "success"} />
+                  <Chip label={product.inStock === false ? "Out of stock" : "In stock"} color={product.inStock === false ? "default" : "success"} />
                   {isMeterBased ? (
-                    <Chip label="Sold per meter / Meter ke hisaab se bikta hai" color="warning" />
+                    <Chip label="Sold per meter" color="warning" />
                   ) : (
-                    <Chip label="Per piece / Fixed price" color="info" />
+                    <Chip label="Per piece" color="info" />
                   )}
-                  {discountPercent > 0 ? <Chip label={`${discountPercent}% OFF`} color="error" /> : null}
+                  {discountPercentage > 0 ? <Chip label={`${discountPercentage}% OFF`} color="error" /> : null}
                 </Stack>
 
                 <Stack direction="row" alignItems="center" spacing={0.7}>
@@ -224,9 +228,9 @@ export default function ProductDetailsPage() {
                       ? `${formatINR(discountedPrice)} / meter`
                       : `${formatINR(discountedPrice)} per piece`}
                   </Typography>
-                  {discountPercent > 0 ? (
+                  {discountPercentage > 0 ? (
                     <Typography variant="body1" sx={{ color: "text.disabled", textDecoration: "line-through" }}>
-                      {formatINR(product.price)}
+                      {formatINR(marketPrice)}
                     </Typography>
                   ) : null}
                 </Stack>
@@ -336,7 +340,7 @@ export default function ProductDetailsPage() {
                   onClick={handleAddToCart}
                   sx={{ mt: 1, width: { xs: "100%", sm: "auto" } }}
                 >
-                  Add to Cart / Cart me add karein
+                  Add to Cart
                 </Button>
               </Stack>
             </Grid>

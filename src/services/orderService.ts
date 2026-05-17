@@ -13,11 +13,26 @@ import {
   where,
 } from "firebase/firestore";
 import { getFirebaseDb } from "@/services/firebase";
+import { PricingType } from "@/utils/pricing";
 
 export type OrderServiceType = "tailoring" | "fabric" | "dupatta";
 export type OrderStatus = "pending" | "in progress" | "done" | "in_progress";
-export type PaymentStatus = "pending" | "paid";
+export type PaymentStatus = "pending" | "partial" | "paid";
 export type PaymentType = "advance" | "full";
+
+export type OrderPricingSnapshot = {
+  pricingType: PricingType;
+  quantityOrMeter: number;
+  marketPrice: number;
+  totalPrice: number;
+  discountPercentage: number;
+  discountAmount: number;
+  finalPrice: number;
+  finalPayable?: number;
+  advancePercentage: number;
+  advanceAmount: number;
+  remainingAmount: number;
+};
 
 export type OrderHistoryItem = {
   status: OrderStatus;
@@ -39,6 +54,16 @@ export type UserOrder = {
   paymentStatus: PaymentStatus;
   paymentType?: PaymentType | null;
   amountPaid?: number | null;
+  advanceAmount?: number | null;
+  remainingAmount?: number | null;
+  finalPrice?: number | null;
+  finalPayable?: number | null;
+  totalPrice?: number | null;
+  marketPrice?: number | null;
+  discountPercentage?: number | null;
+  discountAmount?: number | null;
+  pricingType?: PricingType | null;
+  quantityOrMeter?: number | null;
   paymentId?: string | null;
   status: OrderStatus;
   statusHistory: OrderHistoryItem[];
@@ -54,6 +79,7 @@ type SaveOrderInput = {
   paymentStatus?: PaymentStatus;
   paymentType?: PaymentType;
   amountPaid?: number;
+  pricingSnapshot?: OrderPricingSnapshot;
   paymentId?: string;
   assignedTo?: string;
 };
@@ -66,6 +92,7 @@ export const saveOrderToFirestore = async ({
   paymentStatus,
   paymentType,
   amountPaid,
+  pricingSnapshot,
   paymentId,
   assignedTo,
 }: SaveOrderInput) => {
@@ -86,6 +113,16 @@ export const saveOrderToFirestore = async ({
     paymentStatus: paymentStatus || "pending",
     paymentType: paymentType || null,
     amountPaid: typeof amountPaid === "number" ? amountPaid : null,
+    advanceAmount: pricingSnapshot?.advanceAmount ?? null,
+    remainingAmount: pricingSnapshot?.remainingAmount ?? null,
+    finalPrice: pricingSnapshot?.finalPrice ?? null,
+    finalPayable: pricingSnapshot?.finalPayable ?? pricingSnapshot?.finalPrice ?? null,
+    totalPrice: pricingSnapshot?.totalPrice ?? null,
+    marketPrice: pricingSnapshot?.marketPrice ?? null,
+    discountPercentage: pricingSnapshot?.discountPercentage ?? null,
+    discountAmount: pricingSnapshot?.discountAmount ?? null,
+    pricingType: pricingSnapshot?.pricingType ?? null,
+    quantityOrMeter: pricingSnapshot?.quantityOrMeter ?? null,
     paymentId: paymentId || null,
     status: "pending",
     statusHistory: [
@@ -154,6 +191,16 @@ export const subscribeToAllOrders = (
           paymentStatus: (data.paymentStatus || "pending") as PaymentStatus,
           paymentType: (data.paymentType || null) as PaymentType | null,
           amountPaid: typeof data.amountPaid === "number" ? data.amountPaid : null,
+          advanceAmount: typeof data.advanceAmount === "number" ? data.advanceAmount : null,
+          remainingAmount: typeof data.remainingAmount === "number" ? data.remainingAmount : null,
+          finalPrice: typeof data.finalPrice === "number" ? data.finalPrice : null,
+          finalPayable: typeof data.finalPayable === "number" ? data.finalPayable : null,
+          totalPrice: typeof data.totalPrice === "number" ? data.totalPrice : null,
+          marketPrice: typeof data.marketPrice === "number" ? data.marketPrice : null,
+          discountPercentage: typeof data.discountPercentage === "number" ? data.discountPercentage : null,
+          discountAmount: typeof data.discountAmount === "number" ? data.discountAmount : null,
+          pricingType: (data.pricingType || null) as PricingType | null,
+          quantityOrMeter: typeof data.quantityOrMeter === "number" ? data.quantityOrMeter : null,
           paymentId: data.paymentId || null,
           status: (data.status || "pending") as OrderStatus,
           statusHistory: (data.statusHistory || []) as OrderHistoryItem[],
@@ -205,6 +252,34 @@ export const updateOrderStatus = async (
   });
 };
 
+export const markOrderPaymentAsPaid = async (
+  order: Pick<UserOrder, "id" | "amountPaid" | "finalPrice" | "advanceAmount" | "remainingAmount">,
+) => {
+  const db = getFirebaseDb();
+
+  if (!db) {
+    throw new Error("Firebase is not configured.");
+  }
+
+  const remainingAmount = typeof order.remainingAmount === "number" ? order.remainingAmount : 0;
+  const existingPaid = typeof order.amountPaid === "number"
+    ? order.amountPaid
+    : typeof order.advanceAmount === "number"
+      ? order.advanceAmount
+      : 0;
+  const expectedFinal = typeof order.finalPrice === "number" ? order.finalPrice : existingPaid + remainingAmount;
+  const normalizedAmountPaid = Math.max(existingPaid + remainingAmount, expectedFinal);
+
+  await updateDoc(doc(db, "orders", order.id), {
+    paymentStatus: "paid",
+    paymentType: "full",
+    amountPaid: normalizedAmountPaid,
+    remainingAmount: 0,
+    finalPrice: expectedFinal,
+    paymentUpdatedAt: Timestamp.now(),
+  });
+};
+
 export const subscribeToUserOrders = (
   userId: string,
   onOrders: (orders: UserOrder[]) => void,
@@ -238,6 +313,16 @@ export const subscribeToUserOrders = (
           paymentStatus: (data.paymentStatus || "pending") as PaymentStatus,
           paymentType: (data.paymentType || null) as PaymentType | null,
           amountPaid: typeof data.amountPaid === "number" ? data.amountPaid : null,
+          advanceAmount: typeof data.advanceAmount === "number" ? data.advanceAmount : null,
+          remainingAmount: typeof data.remainingAmount === "number" ? data.remainingAmount : null,
+          finalPrice: typeof data.finalPrice === "number" ? data.finalPrice : null,
+          finalPayable: typeof data.finalPayable === "number" ? data.finalPayable : null,
+          totalPrice: typeof data.totalPrice === "number" ? data.totalPrice : null,
+          marketPrice: typeof data.marketPrice === "number" ? data.marketPrice : null,
+          discountPercentage: typeof data.discountPercentage === "number" ? data.discountPercentage : null,
+          discountAmount: typeof data.discountAmount === "number" ? data.discountAmount : null,
+          pricingType: (data.pricingType || null) as PricingType | null,
+          quantityOrMeter: typeof data.quantityOrMeter === "number" ? data.quantityOrMeter : null,
           paymentId: data.paymentId || null,
           status: (data.status || "pending") as OrderStatus,
           statusHistory: (data.statusHistory || []) as OrderHistoryItem[],

@@ -9,6 +9,7 @@ import {
   Chip,
   Grid2,
   MenuItem,
+  Snackbar,
   Stack,
   Table,
   TableBody,
@@ -19,14 +20,16 @@ import {
   Typography,
 } from "@mui/material";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import RKStudioLogo from "@/components/common/RKStudioLogo";
 import Layout from "@/components/layout/Layout";
 import { useGlobalLoading } from "@/context/LoadingContext";
 import { useAuth } from "@/hooks/useAuth";
+import { getFirebaseAuth } from "@/services/firebase";
 import { useOrders } from "@/hooks/useOrders";
 import {
   getNextOrderStatus,
+  markOrderPaymentAsPaid,
   OrderDetails,
   OrderServiceType,
   OrderStatus,
@@ -93,6 +96,28 @@ const createOrderDetailsText = (order: UserOrder) => {
     .join(" | ");
 };
 
+const getOrderSizeSummary = (order: UserOrder) => {
+  const sizeType = typeof order.orderDetails?.size_type === "string"
+    ? order.orderDetails.size_type.trim().toLowerCase()
+    : "";
+  const sizeValue = typeof order.orderDetails?.size_value === "string"
+    ? order.orderDetails.size_value.trim()
+    : "";
+  const customSizeNotes = typeof order.orderDetails?.custom_size_notes === "string"
+    ? order.orderDetails.custom_size_notes.trim()
+    : "";
+
+  if (sizeType === "custom" && customSizeNotes) {
+    return `Custom Size: ${customSizeNotes}`;
+  }
+
+  if (sizeType === "standard" && sizeValue) {
+    return `Size: ${sizeValue}`;
+  }
+
+  return "";
+};
+
 const escapeCsvValue = (value: string | number) => {
   const text = String(value ?? "");
 
@@ -125,6 +150,10 @@ const getOrderAmount = (order: UserOrder) => {
     return order.amountPaid;
   }
 
+  if (typeof order.finalPrice === "number") {
+    return order.finalPrice;
+  }
+
   const totalPrice = order.orderDetails?.total_price;
   if (typeof totalPrice === "number") {
     return totalPrice;
@@ -138,6 +167,18 @@ const getOrderAmount = (order: UserOrder) => {
   return 0;
 };
 
+const getPaymentChipColor = (status: UserOrder["paymentStatus"]) => {
+  if (status === "paid") {
+    return "success" as const;
+  }
+
+  if (status === "partial") {
+    return "info" as const;
+  }
+
+  return "warning" as const;
+};
+
 type SalesPoint = {
   key: string;
   label: string;
@@ -145,6 +186,32 @@ type SalesPoint = {
 };
 
 type SalesRange = 7 | 15 | 30;
+type PaymentFollowupFilter = "all" | "partial" | "pending";
+
+type ReadinessCheck = {
+  key: string;
+  label: string;
+  ok: boolean;
+  help: string;
+};
+
+type ReadinessResponse = {
+  success: boolean;
+  readiness: {
+    ok: boolean;
+    message: string;
+    environment: string;
+    razorpayEnabled: boolean;
+    mockOtpEnabled: boolean;
+  };
+  sections: {
+    firebaseClient: ReadinessCheck[];
+    firebaseAdmin: ReadinessCheck[];
+    payments: ReadinessCheck[];
+    otpMode: ReadinessCheck[];
+  };
+  nextAction: string;
+};
 
 const buildSalesByDays = (orders: UserOrder[], days: SalesRange): SalesPoint[] => {
   const now = new Date();
@@ -257,13 +324,58 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState("");
   const [serviceFilter, setServiceFilter] = useState<"all" | OrderServiceType>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
+  const [paymentFollowupFilter, setPaymentFollowupFilter] = useState<PaymentFollowupFilter>("all");
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [updatingOrderId, setUpdatingOrderId] = useState("");
+  const [updatingPaymentOrderId, setUpdatingPaymentOrderId] = useState("");
   const [launchFlowOpen, setLaunchFlowOpen] = useState(false);
+  const [readiness, setReadiness] = useState<ReadinessResponse | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
+
+  const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    if (user?.provider === "mock") {
+      return {
+        Authorization: `Bearer mock:${user.uid}:${user.role || "admin"}`,
+      };
+    }
+
+    const auth = getFirebaseAuth();
+    const token = await auth?.currentUser?.getIdToken();
+
+    if (!token) {
+      return {};
+    }
+
+    return {
+      Authorization: `Bearer ${token}`,
+    };
+  }, [user]);
+
+  const loadReadiness = useCallback(async () => {
+    try {
+      setReadinessLoading(true);
+
+      const response = await fetch("/api/system/readiness", {
+        headers: await getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error("Could not load readiness status.");
+      }
+
+      const data = (await response.json()) as ReadinessResponse;
+      setReadiness(data);
+    } catch {
+      setError("Could not load readiness status.");
+    } finally {
+      setReadinessLoading(false);
+    }
+  }, [getAuthHeaders]);
 
   useEffect(() => {
     const unsubscribeUsers = subscribeToAllUsers(setUsers, () => {
-      setError("Users load nahi ho paaye.");
+      setError("Could not load users.");
     });
 
     return () => {
@@ -276,6 +388,23 @@ export default function AdminDashboard() {
       setError(ordersError);
     }
   }, [ordersError]);
+
+  useEffect(() => {
+    loadReadiness();
+  }, [loadReadiness]);
+
+  const readinessFailures = useMemo(() => {
+    if (!readiness) {
+      return [] as ReadinessCheck[];
+    }
+
+    return [
+      ...readiness.sections.firebaseClient,
+      ...readiness.sections.firebaseAdmin,
+      ...readiness.sections.payments,
+      ...readiness.sections.otpMode,
+    ].filter((check) => !check.ok);
+  }, [readiness]);
 
   const usersById = useMemo(() => {
     return users.reduce<Record<string, AppUser>>((acc, appUser) => {
@@ -297,6 +426,41 @@ export default function AdminDashboard() {
     () => salesData.reduce((sum, point) => sum + point.amount, 0),
     [salesData],
   );
+
+  const totalRevenue = useMemo(() => {
+    return orders
+      .filter((order) => order.paymentStatus === "paid")
+      .reduce((sum, order) => sum + (order.finalPrice || getOrderAmount(order)), 0);
+  }, [orders]);
+
+  const advanceCollected = useMemo(() => {
+    return orders
+      .filter((order) => order.paymentStatus === "partial")
+      .reduce((sum, order) => sum + (order.advanceAmount || order.amountPaid || 0), 0);
+  }, [orders]);
+
+  const pendingPayments = useMemo(() => {
+    return orders
+      .filter((order) => order.paymentStatus !== "paid")
+      .reduce((sum, order) => sum + (order.remainingAmount || 0), 0);
+  }, [orders]);
+
+  const paymentFollowupOrders = useMemo(() => {
+    return orders
+      .filter((order) => order.paymentStatus !== "paid")
+      .filter((order) => {
+        if (paymentFollowupFilter === "all") {
+          return true;
+        }
+
+        return order.paymentStatus === paymentFollowupFilter;
+      })
+      .sort((a, b) => {
+        const aAmount = a.remainingAmount || 0;
+        const bAmount = b.remainingAmount || 0;
+        return bAmount - aAmount;
+      });
+  }, [orders, paymentFollowupFilter]);
 
   const searchedUsers = useMemo(() => {
     const normalized = search.trim().toLowerCase();
@@ -376,9 +540,27 @@ export default function AdminDashboard() {
       setUpdatingOrderId(order.id);
       await trackAsync(updateOrderStatus(order.id, nextStatus, user?.phoneNumber || "admin", "Updated by admin"));
     } catch {
-      setError("Order status update nahi ho paaya.");
+      setError("Could not update order status.");
     } finally {
       setUpdatingOrderId("");
+    }
+  };
+
+  const handleMarkPaymentPaid = async (order: UserOrder) => {
+    const confirmed = window.confirm("Has the remaining payment been received for this order?");
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setUpdatingPaymentOrderId(order.id);
+      await trackAsync(markOrderPaymentAsPaid(order));
+      setSuccessMessage("Payment status marked as paid.");
+    } catch {
+      setError("Could not mark payment as paid.");
+    } finally {
+      setUpdatingPaymentOrderId("");
     }
   };
 
@@ -414,6 +596,17 @@ export default function AdminDashboard() {
 
         {error ? <Alert severity="error">{error}</Alert> : null}
 
+        <Snackbar
+          open={Boolean(successMessage)}
+          autoHideDuration={2500}
+          onClose={() => setSuccessMessage("")}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        >
+          <Alert severity="success" onClose={() => setSuccessMessage("")} sx={{ width: "100%" }}>
+            {successMessage}
+          </Alert>
+        </Snackbar>
+
         <PreLaunchFlow open={launchFlowOpen} onClose={() => setLaunchFlowOpen(false)} />
 
         <Grid2 container spacing={2}>
@@ -438,6 +631,81 @@ export default function AdminDashboard() {
               <CardContent>
                 <Typography variant="body2" color="text.secondary">Total Users</Typography>
                 <Typography variant="h5" sx={{ fontWeight: 700 }}>{users.length}</Typography>
+              </CardContent>
+            </Card>
+          </Grid2>
+
+          <Grid2 size={{ xs: 12, md: 4 }}>
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary">Total Revenue</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>{formatINR(totalRevenue)}</Typography>
+              </CardContent>
+            </Card>
+          </Grid2>
+
+          <Grid2 size={{ xs: 12, md: 4 }}>
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary">Advance Collected</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>{formatINR(advanceCollected)}</Typography>
+              </CardContent>
+            </Card>
+          </Grid2>
+
+          <Grid2 size={{ xs: 12, md: 4 }}>
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary">Pending Payments</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>{formatINR(pendingPayments)}</Typography>
+              </CardContent>
+            </Card>
+          </Grid2>
+
+          <Grid2 size={{ xs: 12 }}>
+            <Card>
+              <CardContent>
+                <Stack spacing={1.2}>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2} justifyContent="space-between" alignItems={{ sm: "center" }}>
+                    <Typography variant="h6">Launch Readiness</Typography>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      {readiness ? (
+                        <Chip
+                          label={readiness.readiness.ok ? "Ready" : "Action Needed"}
+                          color={readiness.readiness.ok ? "success" : "warning"}
+                          size="small"
+                        />
+                      ) : null}
+                      <Button variant="outlined" size="small" onClick={loadReadiness} disabled={readinessLoading}>
+                        {readinessLoading ? "Checking..." : "Refresh"}
+                      </Button>
+                    </Stack>
+                  </Stack>
+
+                  {readiness ? (
+                    <>
+                      <Typography color="text.secondary">{readiness.readiness.message}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Environment: {readiness.readiness.environment} | Payment: {readiness.readiness.razorpayEnabled ? "Enabled" : "Disabled"} | OTP Mode: {readiness.readiness.mockOtpEnabled ? "Mock" : "Real"}
+                      </Typography>
+
+                      {readinessFailures.length > 0 ? (
+                        <Alert severity="warning">
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>Pending Checks:</Typography>
+                          {readinessFailures.slice(0, 4).map((failure) => (
+                            <Typography key={failure.key} variant="body2">- {failure.label}: {failure.help}</Typography>
+                          ))}
+                        </Alert>
+                      ) : (
+                        <Alert severity="success">All critical launch checks passed.</Alert>
+                      )}
+
+                      <Typography variant="body2" color="text.secondary">{readiness.nextAction}</Typography>
+                    </>
+                  ) : (
+                    <Typography color="text.secondary">Readiness data unavailable.</Typography>
+                  )}
+                </Stack>
               </CardContent>
             </Card>
           </Grid2>
@@ -472,6 +740,85 @@ export default function AdminDashboard() {
             </Card>
           </Grid2>
         </Grid2>
+
+        <Card>
+          <CardContent>
+            <Stack spacing={2}>
+              <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1.5}>
+                <Typography variant="h5">Payment Follow-up</Typography>
+                <TextField
+                  select
+                  label="Payment Status"
+                  value={paymentFollowupFilter}
+                  onChange={(event) => setPaymentFollowupFilter(event.target.value as PaymentFollowupFilter)}
+                  size="small"
+                  sx={{ minWidth: 180 }}
+                >
+                  <MenuItem value="all">All unpaid</MenuItem>
+                  <MenuItem value="partial">Partial</MenuItem>
+                  <MenuItem value="pending">Pending</MenuItem>
+                </TextField>
+              </Stack>
+
+              <Box sx={{ overflowX: "auto" }}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>User</TableCell>
+                      <TableCell>Phone</TableCell>
+                      <TableCell>Service</TableCell>
+                      <TableCell>Payment</TableCell>
+                      <TableCell>Collected</TableCell>
+                      <TableCell>Pending</TableCell>
+                      <TableCell>Date</TableCell>
+                      <TableCell>Action</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {paymentFollowupOrders.map((order) => {
+                      const linkedUser = usersById[order.userId];
+
+                      return (
+                        <TableRow key={`payment-${order.id}`}>
+                          <TableCell>{linkedUser?.name || "User"}</TableCell>
+                          <TableCell>{linkedUser?.phone || "-"}</TableCell>
+                          <TableCell sx={{ textTransform: "capitalize" }}>{order.service}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={order.paymentStatus === "partial" ? "Partial" : "Pending"}
+                              size="small"
+                              color={getPaymentChipColor(order.paymentStatus)}
+                            />
+                          </TableCell>
+                          <TableCell>{formatINR(order.amountPaid || order.advanceAmount || 0)}</TableCell>
+                          <TableCell>{formatINR(order.remainingAmount || 0)}</TableCell>
+                          <TableCell>{formatDate(order.createdAt)}</TableCell>
+                          <TableCell>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="success"
+                              onClick={() => handleMarkPaymentPaid(order)}
+                              disabled={updatingPaymentOrderId === order.id}
+                            >
+                              Mark Paid
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+
+                    {paymentFollowupOrders.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8}>No unpaid orders for selected payment filter.</TableCell>
+                      </TableRow>
+                    ) : null}
+                  </TableBody>
+                </Table>
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardContent>
@@ -527,6 +874,7 @@ export default function AdminDashboard() {
                       const userPhone = linkedUser?.phone || "";
                       const nextStatus = getNextOrderStatus(order.status);
                       const detailsText = createOrderDetailsText(order);
+                      const sizeSummary = getOrderSizeSummary(order);
 
                       return (
                         <TableRow key={order.id}>
@@ -536,9 +884,9 @@ export default function AdminDashboard() {
                           <TableCell>
                             <Stack spacing={0.6}>
                               <Chip
-                                label={order.paymentStatus === "paid" ? "Paid" : "Pending"}
+                                label={order.paymentStatus === "paid" ? "Paid" : order.paymentStatus === "partial" ? "Partial" : "Pending"}
                                 size="small"
-                                color={order.paymentStatus === "paid" ? "success" : "warning"}
+                                color={getPaymentChipColor(order.paymentStatus)}
                               />
                               <Typography variant="caption" color="text.secondary">
                                 {order.paymentType ? `Type: ${order.paymentType}` : "Type: -"}
@@ -548,7 +896,16 @@ export default function AdminDashboard() {
                               </Typography>
                             </Stack>
                           </TableCell>
-                          <TableCell sx={{ maxWidth: 260 }}>{detailsText || "-"}</TableCell>
+                          <TableCell sx={{ maxWidth: 260 }}>
+                            <Stack spacing={0.3}>
+                              {sizeSummary ? (
+                                <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                                  {sizeSummary}
+                                </Typography>
+                              ) : null}
+                              <Typography variant="body2">{detailsText || "-"}</Typography>
+                            </Stack>
+                          </TableCell>
                           <TableCell>
                             <Chip label={formatStatusLabel(order.status)} size="small" color={order.status === "done" ? "success" : "warning"} />
                           </TableCell>

@@ -1,5 +1,35 @@
 export type PendingPaymentService = "tailoring" | "fabric" | "dupatta";
 
+export type PendingPaymentPricingInput = {
+  productId?: string;
+  pricingType?: "meter" | "piece";
+  quantityOrMeter?: number;
+  pickupCharge?: number;
+  dropCharge?: number;
+  lineItems?: Array<{
+    productId: string;
+    quantityOrMeter: number;
+  }>;
+};
+
+export type PendingPaymentPricingBreakdown = {
+  marketPrice: number;
+  pricingType: "meter" | "piece";
+  pricePerUnit: number;
+  quantityOrMeter: number;
+  totalPrice: number;
+  discountPercentage: number;
+  discountAmount: number;
+  finalPrice: number;
+  pickupCharge: number;
+  dropCharge: number;
+  pickupDropCharge: number;
+  finalPayable: number;
+  advancePercentage: number;
+  advanceAmount: number;
+  remainingAmount: number;
+};
+
 export type PendingPaymentOrder = {
   service: PendingPaymentService;
   userId: string;
@@ -9,6 +39,8 @@ export type PendingPaymentOrder = {
   productId?: string;
   amount: number;
   paymentType: "advance" | "full";
+  pricingInput?: PendingPaymentPricingInput;
+  pricingBreakdown?: PendingPaymentPricingBreakdown;
   whatsappDetails: string[];
 };
 

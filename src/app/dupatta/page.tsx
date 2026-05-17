@@ -4,8 +4,8 @@ import dynamic from "next/dynamic";
 import ViewModuleIcon from "@mui/icons-material/ViewModule";
 import StraightenIcon from "@mui/icons-material/Straighten";
 import CheckroomIcon from "@mui/icons-material/Checkroom";
-import { Alert, Box, Chip, Skeleton, Stack, Typography } from "@mui/material";
-import { useMemo, useState } from "react";
+import { Alert, Box, Button, Chip, Skeleton, Stack, Typography } from "@mui/material";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Layout from "@/components/layout/Layout";
 import { useProducts } from "@/hooks/useProducts";
 
@@ -14,8 +14,16 @@ const DupattaGrid = dynamic(
 );
 
 export default function DupattaPage() {
-  const { products, loading, error } = useProducts({ category: "dupatta" });
+  const {
+    products,
+    loading,
+    error,
+    loadMore,
+    hasMore,
+    loadingMore,
+  } = useProducts({ category: "dupatta", paginated: true, pageSize: 24 });
   const [unitFilter, setUnitFilter] = useState<"all" | "meter" | "piece">("all");
+  const infiniteScrollAnchorRef = useRef<HTMLDivElement | null>(null);
 
   const filteredProducts = useMemo(() => {
     if (unitFilter === "all") {
@@ -27,6 +35,41 @@ export default function DupattaPage() {
     );
   }, [products, unitFilter]);
 
+  useEffect(() => {
+    if (loading || loadingMore || !hasMore) {
+      return;
+    }
+
+    const anchor = infiniteScrollAnchorRef.current;
+
+    if (!anchor) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+
+        if (!entry?.isIntersecting || loadingMore || !hasMore) {
+          return;
+        }
+
+        void loadMore();
+      },
+      {
+        root: null,
+        rootMargin: "220px 0px",
+        threshold: 0,
+      },
+    );
+
+    observer.observe(anchor);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, loadMore, loading, loadingMore]);
+
   return (
     <Layout>
       <Stack spacing={3}>
@@ -35,7 +78,7 @@ export default function DupattaPage() {
           Ready designs for all occasions.
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Koi dikkat ho to WhatsApp karein. Hum madad ke liye yahan hain.
+          Need help? Contact us on WhatsApp.
         </Typography>
 
         <Stack
@@ -96,7 +139,24 @@ export default function DupattaPage() {
           <DupattaGrid products={filteredProducts} />
         )}
         {!loading && filteredProducts.length === 0 ? (
-          <Alert severity="info">Abhi dupatta available nahi hai. Thodi der baad check karein.</Alert>
+          <Alert severity="info">No dupatta products are available right now. Please check again later.</Alert>
+        ) : null}
+
+        {!loading && hasMore ? (
+          <>
+            <Box ref={infiniteScrollAnchorRef} sx={{ width: "100%", height: 1 }} />
+            {loadingMore ? (
+              <Stack spacing={1} sx={{ px: { xs: 0, md: 2 } }}>
+                <Skeleton variant="rounded" height={16} />
+                <Skeleton variant="rounded" height={16} width="70%" />
+              </Stack>
+            ) : null}
+            <Stack direction="row" justifyContent="center">
+              <Button variant="outlined" onClick={loadMore} disabled={loadingMore}>
+                {loadingMore ? "Loading..." : "Load More"}
+              </Button>
+            </Stack>
+          </>
         ) : null}
       </Stack>
     </Layout>

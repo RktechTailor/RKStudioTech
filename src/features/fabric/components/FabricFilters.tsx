@@ -13,7 +13,7 @@ export default function FabricFilters({ filters, onChange }: FabricFiltersProps)
     <Card>
       <CardContent>
         <Typography variant="h6" mb={2}>
-          Kapda filter karein
+          Filter fabric
         </Typography>
 
         <Stack spacing={2}>
@@ -31,7 +31,7 @@ export default function FabricFilters({ filters, onChange }: FabricFiltersProps)
 
           <TextField
             select
-            label="Kapda type"
+            label="Fabric type"
             value={filters.type}
             onChange={(event) =>
               onChange({
@@ -40,7 +40,7 @@ export default function FabricFilters({ filters, onChange }: FabricFiltersProps)
               })
             }
           >
-            <MenuItem value="all">Sab</MenuItem>
+            <MenuItem value="all">All</MenuItem>
             <MenuItem value="cotton">Cotton</MenuItem>
             <MenuItem value="rayon">Rayon</MenuItem>
             <MenuItem value="silk">Silk</MenuItem>

@@ -3,6 +3,8 @@ export type TailoringValidationInput = {
   formData: {
     category: string;
     design: string;
+    size: string;
+    customSizeNotes: string;
     bust: string;
     waist: string;
     length: string;
@@ -17,23 +19,29 @@ export type TailoringValidationInput = {
 };
 
 export const getTailoringValidationMessage = ({ activeStep, formData }: TailoringValidationInput) => {
-  if (activeStep === 0 && !formData.category) return "Silai category chune.";
-  if (activeStep === 1 && !formData.design) return "Design chune.";
-  if (activeStep === 2 && (!formData.bust || !formData.waist || !formData.length)) {
-    return "Zaroori nape bharein.";
+  if (activeStep === 0 && !formData.category) return "Select a tailoring category.";
+  if (activeStep === 1 && !formData.design) return "Select a design.";
+  if (activeStep === 2 && formData.size === "Custom Size" && !formData.customSizeNotes.trim()) {
+    return "Enter custom size details.";
   }
-  if (activeStep === 3 && !formData.fabricSource) return "Kapda source chune.";
+  if (activeStep === 2 && formData.size === "Custom Size" && formData.customSizeNotes.trim().length > 500) {
+    return "Keep custom size details under 500 characters.";
+  }
+  if (activeStep === 2 && (!formData.bust || !formData.waist || !formData.length)) {
+    return "Enter required measurements.";
+  }
+  if (activeStep === 3 && !formData.fabricSource) return "Select a fabric source.";
   if (activeStep === 3 && formData.fabricSource === "own" && (!formData.fabricType || !formData.fabricColor)) {
-    return "Kapda type aur color bharein.";
+    return "Enter fabric type and color.";
   }
   if (activeStep === 3 && formData.fabricSource === "external" && !formData.fabricName) {
-    return "Jo kapda lena hai uska naam bharein.";
+    return "Enter the fabric name you want to buy.";
   }
   if (activeStep === 3 && formData.fabricSource === "rkstudio" && !formData.rkStudioProductId) {
-    return "RK Studio ka kapda chune.";
+    return "Select a fabric from RK Studio.";
   }
   if (activeStep === 4 && (!formData.customerName || !formData.phone)) {
-    return "Naam aur phone number bharein.";
+    return "Enter your name and phone number.";
   }
 
   return "";

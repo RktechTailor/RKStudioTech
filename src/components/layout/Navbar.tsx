@@ -29,7 +29,7 @@ import { isAdminUser } from "@/utils/admin";
 const navLinks = [
   { label: "Home", href: "/" },
   { label: "Stitch", href: "/tailoring" },
-  { label: "Febric", href: "/fabric" },
+  { label: "Fabric", href: "/fabric" },
   { label: "Dupatta", href: "/dupatta" },
   { label: "Cart", href: "/cart" },
 ];
@@ -175,7 +175,7 @@ export default function Navbar() {
               },
             }}
           >
-            WhatsApp pe baat karein
+            Chat on WhatsApp
           </Button>
           {user ? (
             <>
@@ -259,7 +259,7 @@ export default function Navbar() {
                 },
               }}
             >
-              Login karein
+              Login
             </Button>
           )}
         </Stack>
@@ -273,7 +273,7 @@ export default function Navbar() {
             justifySelf: "end",
           }}
           onClick={() => setOpen(true)}
-          aria-label="Menu kholein"
+          aria-label="Open menu"
         >
           <MenuIcon />
         </IconButton>
@@ -308,7 +308,7 @@ export default function Navbar() {
               border: `1px solid ${alpha("#86EFAC", 0.84)}`,
             }}
           >
-            WhatsApp pe baat karein
+            Chat on WhatsApp
           </Button>
           <Divider />
           {mobileLinks.map((link) => (
@@ -339,7 +339,7 @@ export default function Navbar() {
               startIcon={<LogoutRoundedIcon />}
               sx={{ justifyContent: "flex-start", borderRadius: 999 }}
             >
-              Bahar niklein
+              Logout
             </Button>
           ) : null}
         </Stack>
