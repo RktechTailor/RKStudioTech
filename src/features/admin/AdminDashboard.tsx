@@ -2,13 +2,12 @@
 
 import {
   Alert,
-  alpha,
   Box,
   Button,
   Card,
   CardContent,
   Chip,
-  Link as MuiLink,
+  Grid2,
   MenuItem,
   Stack,
   Table,
@@ -35,24 +34,38 @@ import {
   UserOrder,
 } from "@/services/orderService";
 import { AppUser, subscribeToAllUsers } from "@/services/userService";
-import { buildWhatsAppUrl, sendToWhatsApp } from "@/utils/whatsapp";
 
 const formatStatusLabel = (status: OrderStatus) => {
   if (status === "pending") return "Pending";
-  if (status === "in_progress") return "Kaam chal raha hai";
-  if (status === "done") return "Poora";
+  if (status === "in_progress" || status === "in progress") return "In Progress";
+  if (status === "done") return "Done";
   return status;
 };
 
 const formatDate = (createdAt: UserOrder["createdAt"] | AppUser["createdAt"]) => {
   if (!createdAt) {
-    return "Abhi";
+    return "-";
   }
 
   return new Intl.DateTimeFormat("en-IN", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(createdAt.toDate());
+};
+
+const formatShortDate = (date: Date) => {
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+  }).format(date);
+};
+
+const formatINR = (amount: number) => {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(amount);
 };
 
 const formatOrderDetailsLabel = (value: string) => {
@@ -79,11 +92,168 @@ const createOrderDetailsText = (order: UserOrder) => {
     .join(" | ");
 };
 
+const escapeCsvValue = (value: string | number) => {
+  const text = String(value ?? "");
+
+  if (/[,"\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+
+  return text;
+};
+
+const downloadCsv = (filename: string, headers: string[], rows: Array<Array<string | number>>) => {
+  const content = [
+    headers.map(escapeCsvValue).join(","),
+    ...rows.map((row) => row.map(escapeCsvValue).join(",")),
+  ].join("\n");
+
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+};
+
+const getOrderAmount = (order: UserOrder) => {
+  if (typeof order.amountPaid === "number") {
+    return order.amountPaid;
+  }
+
+  const totalPrice = order.orderDetails?.total_price;
+  if (typeof totalPrice === "number") {
+    return totalPrice;
+  }
+
+  const totalAmount = order.orderDetails?.totalAmount;
+  if (typeof totalAmount === "number") {
+    return totalAmount;
+  }
+
+  return 0;
+};
+
+type SalesPoint = {
+  key: string;
+  label: string;
+  amount: number;
+};
+
+type SalesRange = 7 | 15 | 30;
+
+const buildSalesByDays = (orders: UserOrder[], days: SalesRange): SalesPoint[] => {
+  const now = new Date();
+  const dayKeys: string[] = [];
+
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const date = new Date(now);
+    date.setHours(0, 0, 0, 0);
+    date.setDate(now.getDate() - i);
+    dayKeys.push(date.toISOString().slice(0, 10));
+  }
+
+  const totals = dayKeys.reduce<Record<string, number>>((acc, key) => {
+    acc[key] = 0;
+    return acc;
+  }, {});
+
+  orders.forEach((order) => {
+    if (!order.createdAt || order.paymentStatus !== "paid") {
+      return;
+    }
+
+    const orderDate = order.createdAt.toDate();
+    orderDate.setHours(0, 0, 0, 0);
+    const key = orderDate.toISOString().slice(0, 10);
+
+    if (!(key in totals)) {
+      return;
+    }
+
+    totals[key] += getOrderAmount(order);
+  });
+
+  return dayKeys.map((key) => {
+    const date = new Date(`${key}T00:00:00`);
+
+    return {
+      key,
+      label: formatShortDate(date),
+      amount: totals[key] || 0,
+    };
+  });
+};
+
+const SmallSalesChart = ({ data }: { data: SalesPoint[] }) => {
+  const width = Math.max(340, data.length * 44);
+  const height = 170;
+  const left = 36;
+  const right = 12;
+  const top = 12;
+  const bottom = 32;
+  const chartWidth = width - left - right;
+  const chartHeight = height - top - bottom;
+  const maxValue = Math.max(...data.map((point) => point.amount), 0);
+  const safeMax = maxValue > 0 ? maxValue : 1;
+
+  const points = data.map((point, index) => {
+    const x = left + (chartWidth * index) / Math.max(data.length - 1, 1);
+    const y = top + chartHeight - (point.amount / safeMax) * chartHeight;
+    return { ...point, x, y };
+  });
+
+  const linePath = points
+    .map((point, index) => `${index === 0 ? "M" : "L"}${point.x},${point.y}`)
+    .join(" ");
+  const labelInterval = data.length > 20 ? 4 : data.length > 12 ? 3 : data.length > 8 ? 2 : 1;
+
+  return (
+    <Box sx={{ width: "100%", overflowX: "auto" }}>
+      <Box component="svg" viewBox={`0 0 ${width} ${height}`} sx={{ width: "100%", minWidth: `${width}px`, height: 190 }}>
+        <line x1={left} y1={top} x2={left} y2={top + chartHeight} stroke="#CBD5E1" strokeWidth={1} />
+        <line x1={left} y1={top + chartHeight} x2={left + chartWidth} y2={top + chartHeight} stroke="#CBD5E1" strokeWidth={1} />
+
+        <text x={8} y={top + 6} fontSize="10" fill="#64748B">{formatINR(maxValue)}</text>
+        <text x={8} y={top + chartHeight} fontSize="10" fill="#64748B">{formatINR(0)}</text>
+
+        {linePath ? (
+          <path d={linePath} fill="none" stroke="#0EA5E9" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+        ) : null}
+
+        {points.map((point) => (
+          <circle key={point.key} cx={point.x} cy={point.y} r={3.2} fill="#0EA5E9" />
+        ))}
+
+        {points.map((point, index) => {
+          const isLast = index === points.length - 1;
+          const shouldRenderLabel = index % labelInterval === 0 || isLast;
+
+          if (!shouldRenderLabel) {
+            return null;
+          }
+
+          return (
+            <text key={`${point.key}-label`} x={point.x} y={height - 10} textAnchor="middle" fontSize="10" fill="#475569">
+              {point.label}
+            </text>
+          );
+        })}
+      </Box>
+    </Box>
+  );
+};
+
 export default function AdminDashboard() {
   const { user } = useAuth();
   const { trackAsync } = useGlobalLoading();
   const { orders, error: ordersError } = useOrders({ mode: "all" });
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [salesRange, setSalesRange] = useState<SalesRange>(7);
+  const [search, setSearch] = useState("");
   const [serviceFilter, setServiceFilter] = useState<"all" | OrderServiceType>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
   const [error, setError] = useState("");
@@ -112,6 +282,33 @@ export default function AdminDashboard() {
     }, {});
   }, [users]);
 
+  const orderCountByUserId = useMemo(() => {
+    return orders.reduce<Record<string, number>>((acc, order) => {
+      acc[order.userId] = (acc[order.userId] || 0) + 1;
+      return acc;
+    }, {});
+  }, [orders]);
+
+  const salesData = useMemo(() => buildSalesByDays(orders, salesRange), [orders, salesRange]);
+
+  const totalSalesInRange = useMemo(
+    () => salesData.reduce((sum, point) => sum + point.amount, 0),
+    [salesData],
+  );
+
+  const searchedUsers = useMemo(() => {
+    const normalized = search.trim().toLowerCase();
+
+    if (!normalized) {
+      return users;
+    }
+
+    return users.filter((appUser) => {
+      return appUser.name.toLowerCase().includes(normalized)
+        || appUser.phone.toLowerCase().includes(normalized);
+    });
+  }, [search, users]);
+
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       const byService = serviceFilter === "all" || order.service === serviceFilter;
@@ -123,6 +320,48 @@ export default function AdminDashboard() {
       return byService && byStatus;
     });
   }, [orders, serviceFilter, statusFilter]);
+
+  const handleExportOrders = () => {
+    const rows = orders.map((order) => {
+      const linkedUser = usersById[order.userId];
+
+      return [
+        order.id,
+        linkedUser?.name || "-",
+        linkedUser?.phone || "-",
+        order.service,
+        order.status,
+        order.paymentStatus,
+        getOrderAmount(order),
+        formatDate(order.createdAt),
+        createOrderDetailsText(order) || "-",
+      ];
+    });
+
+    downloadCsv(
+      `orders-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["Order ID", "User Name", "Phone", "Service", "Status", "Payment Status", "Amount", "Created At", "Order Details"],
+      rows,
+    );
+  };
+
+  const handleExportUsers = () => {
+    const rows = users.map((appUser) => {
+      return [
+        appUser.id,
+        appUser.name || "-",
+        appUser.phone || "-",
+        orderCountByUserId[appUser.id] || 0,
+        formatDate(appUser.createdAt),
+      ];
+    });
+
+    downloadCsv(
+      `users-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["User ID", "Name", "Phone", "Total Orders", "Created At"],
+      rows,
+    );
+  };
 
   const handleAdvanceStatus = async (order: UserOrder) => {
     const nextStatus = getNextOrderStatus(order.status);
@@ -146,69 +385,113 @@ export default function AdminDashboard() {
       <Stack spacing={3}>
         <Card>
           <CardContent>
-            <Stack spacing={1.2}>
+            <Stack spacing={2}>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ xs: "flex-start", sm: "center" }}>
                 <RKStudioLogo size={34} variant="full" />
                 <Stack spacing={0.4}>
-                  <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
-                    <Typography variant="h4">Admin Kendra</Typography>
-                    <Box
-                      sx={{
-                        px: 1.2,
-                        py: 0.5,
-                        borderRadius: 999,
-                        fontSize: "0.72rem",
-                        fontWeight: 700,
-                        color: "primary.main",
-                        bgcolor: alpha("#DBEAFE", 0.95),
-                        border: `1px solid ${alpha("#93C5FD", 0.48)}`,
-                      }}
-                    >
-                      RK Prabandhan
-                    </Box>
-                  </Stack>
-                  <Typography color="text.secondary">Yahaan se grahak aur orders sambhalein.</Typography>
+                  <Typography variant="h4">Admin Dashboard</Typography>
+                  <Typography color="text.secondary">Manage sales, users, and orders in one place.</Typography>
                 </Stack>
               </Stack>
-              <Button component={Link} href="/admin/products" variant="outlined" sx={{ width: "fit-content" }}>
-                Product jodein
-              </Button>
+
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2}>
+                <Button onClick={handleExportOrders} variant="contained">Export Orders</Button>
+                <Button onClick={handleExportUsers} variant="outlined">Export Users</Button>
+                <Button component={Link} href="/admin/products" variant="outlined">Manage Products</Button>
+              </Stack>
             </Stack>
           </CardContent>
         </Card>
 
         {error ? <Alert severity="error">{error}</Alert> : null}
 
+        <Grid2 container spacing={2}>
+          <Grid2 size={{ xs: 12, md: 4 }}>
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary">Sales (Last {salesRange} Days)</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>{formatINR(totalSalesInRange)}</Typography>
+              </CardContent>
+            </Card>
+          </Grid2>
+          <Grid2 size={{ xs: 12, md: 4 }}>
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary">Total Orders</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>{orders.length}</Typography>
+              </CardContent>
+            </Card>
+          </Grid2>
+          <Grid2 size={{ xs: 12, md: 4 }}>
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary">Total Users</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>{users.length}</Typography>
+              </CardContent>
+            </Card>
+          </Grid2>
+
+          <Grid2 size={{ xs: 12 }}>
+            <Card>
+              <CardContent>
+                <Stack spacing={1.2}>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} justifyContent="space-between">
+                    <Typography variant="h6">Sales Trend</Typography>
+                    <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                      {[7, 15, 30].map((range) => {
+                        const isActive = salesRange === range;
+
+                        return (
+                          <Chip
+                            key={range}
+                            label={`${range}D`}
+                            clickable
+                            onClick={() => setSalesRange(range as SalesRange)}
+                            color={isActive ? "primary" : "default"}
+                            variant={isActive ? "filled" : "outlined"}
+                            size="small"
+                          />
+                        );
+                      })}
+                    </Stack>
+                  </Stack>
+                  <SmallSalesChart data={salesData} />
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid2>
+        </Grid2>
+
         <Card>
           <CardContent>
             <Stack spacing={2}>
-              <Typography variant="h5">Order</Typography>
+              <Typography variant="h5">Orders</Typography>
 
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                 <TextField
                   select
-                  label="Seva"
+                  label="Service"
                   value={serviceFilter}
                   onChange={(event) => setServiceFilter(event.target.value as "all" | OrderServiceType)}
                   sx={{ minWidth: 180 }}
                 >
-                  <MenuItem value="all">Sab service</MenuItem>
-                  <MenuItem value="tailoring">Silai</MenuItem>
-                  <MenuItem value="fabric">Kapda</MenuItem>
+                  <MenuItem value="all">All services</MenuItem>
+                  <MenuItem value="tailoring">Tailoring</MenuItem>
+                  <MenuItem value="fabric">Fabric</MenuItem>
                   <MenuItem value="dupatta">Dupatta</MenuItem>
                 </TextField>
 
                 <TextField
                   select
-                  label="Haalat"
+                  label="Status"
                   value={statusFilter}
                   onChange={(event) => setStatusFilter(event.target.value as "all" | OrderStatus)}
                   sx={{ minWidth: 180 }}
                 >
-                  <MenuItem value="all">Sab status</MenuItem>
+                  <MenuItem value="all">All status</MenuItem>
                   <MenuItem value="pending">Pending</MenuItem>
-                  <MenuItem value="in progress">Kaam chal raha hai</MenuItem>
-                  <MenuItem value="done">Poora</MenuItem>
+                  <MenuItem value="in progress">In Progress</MenuItem>
+                  <MenuItem value="done">Done</MenuItem>
                 </TextField>
               </Stack>
 
@@ -216,20 +499,20 @@ export default function AdminDashboard() {
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Grahak</TableCell>
-                      <TableCell>Mobile</TableCell>
-                      <TableCell>Seva</TableCell>
+                      <TableCell>User</TableCell>
+                      <TableCell>Phone</TableCell>
+                      <TableCell>Service</TableCell>
                       <TableCell>Payment</TableCell>
-                      <TableCell>Jankari</TableCell>
-                      <TableCell>Haalat</TableCell>
-                      <TableCell>Tarikh</TableCell>
-                      <TableCell>Karya</TableCell>
+                      <TableCell>Details</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Date</TableCell>
+                      <TableCell>Action</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {filteredOrders.map((order) => {
                       const linkedUser = usersById[order.userId];
-                      const userName = linkedUser?.name || "Grahak";
+                      const userName = linkedUser?.name || "User";
                       const userPhone = linkedUser?.phone || "";
                       const nextStatus = getNextOrderStatus(order.status);
                       const detailsText = createOrderDetailsText(order);
@@ -247,13 +530,10 @@ export default function AdminDashboard() {
                                 color={order.paymentStatus === "paid" ? "success" : "warning"}
                               />
                               <Typography variant="caption" color="text.secondary">
-                                {order.paymentType ? `Prakar: ${order.paymentType}` : "Prakar: -"}
+                                {order.paymentType ? `Type: ${order.paymentType}` : "Type: -"}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
-                                {typeof order.amountPaid === "number" ? `Rakam: INR ${order.amountPaid}` : "Rakam: -"}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {order.paymentId ? `Payment ID: ${order.paymentId}` : "Payment ID: -"}
+                                Amount: {formatINR(getOrderAmount(order))}
                               </Typography>
                             </Stack>
                           </TableCell>
@@ -271,34 +551,11 @@ export default function AdminDashboard() {
                                   onClick={() => handleAdvanceStatus(order)}
                                   disabled={updatingOrderId === order.id}
                                 >
-                                  {formatStatusLabel(nextStatus)} karein
+                                  Mark {formatStatusLabel(nextStatus)}
                                 </Button>
                               ) : (
-                                <Chip label="Poora" size="small" color="success" />
+                                <Chip label="Done" size="small" color="success" />
                               )}
-
-                              {userPhone ? (
-                                <Button
-                                  size="small"
-                                  variant="text"
-                                  onClick={() =>
-                                    sendToWhatsApp({
-                                      name: userName,
-                                      phone: userPhone,
-                                      service: order.service,
-                                      details: detailsText || order.service,
-                                    })
-                                  }
-                                >
-                                  WhatsApp
-                                </Button>
-                              ) : null}
-
-                              {userPhone ? (
-                                <MuiLink href={`tel:${userPhone}`} underline="none">
-                                  <Button size="small" variant="text">Call karein</Button>
-                                </MuiLink>
-                              ) : null}
                             </Stack>
                           </TableCell>
                         </TableRow>
@@ -307,7 +564,7 @@ export default function AdminDashboard() {
 
                     {filteredOrders.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8}>Is filter me koi order nahi mila.</TableCell>
+                        <TableCell colSpan={8}>No orders found for selected filters.</TableCell>
                       </TableRow>
                     ) : null}
                   </TableBody>
@@ -320,54 +577,41 @@ export default function AdminDashboard() {
         <Card>
           <CardContent>
             <Stack spacing={2}>
-              <Typography variant="h5">Grahak</Typography>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2} justifyContent="space-between">
+                <Typography variant="h5">Users</Typography>
+                <TextField
+                  label="Search users"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by name or phone"
+                  size="small"
+                  sx={{ width: { xs: "100%", sm: 280 } }}
+                />
+              </Stack>
 
               <Box sx={{ overflowX: "auto" }}>
                 <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Naam</TableCell>
-                      <TableCell>Mobile</TableCell>
-                      <TableCell>Banaya gaya</TableCell>
-                      <TableCell>Contact</TableCell>
+                      <TableCell>Name</TableCell>
+                      <TableCell>Phone</TableCell>
+                      <TableCell>Total Orders</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {users.map((appUser) => {
-                      const fallbackDetails = "Sadharan sahayata";
-                      const whatsappUrl = buildWhatsAppUrl({
-                        name: appUser.name || "Grahak",
-                        phone: appUser.phone || "-",
-                        service: "tailoring",
-                        details: fallbackDetails,
-                      });
-
+                    {searchedUsers.map((appUser) => {
                       return (
                         <TableRow key={appUser.id}>
                           <TableCell>{appUser.name || "-"}</TableCell>
                           <TableCell>{appUser.phone || "-"}</TableCell>
-                          <TableCell>{formatDate(appUser.createdAt)}</TableCell>
-                          <TableCell>
-                            <Stack direction="row" spacing={1}>
-                              {appUser.phone ? (
-                                <MuiLink href={whatsappUrl} target="_blank" rel="noopener noreferrer" underline="none">
-                                  <Button size="small">WhatsApp</Button>
-                                </MuiLink>
-                              ) : null}
-                              {appUser.phone ? (
-                                <MuiLink href={`tel:${appUser.phone}`} underline="none">
-                                  <Button size="small">Call karein</Button>
-                                </MuiLink>
-                              ) : null}
-                            </Stack>
-                          </TableCell>
+                          <TableCell>{orderCountByUserId[appUser.id] || 0}</TableCell>
                         </TableRow>
                       );
                     })}
 
-                    {users.length === 0 ? (
+                    {searchedUsers.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={4}>Koi user nahi mila.</TableCell>
+                        <TableCell colSpan={3}>No users found.</TableCell>
                       </TableRow>
                     ) : null}
                   </TableBody>
