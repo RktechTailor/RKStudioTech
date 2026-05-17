@@ -1,7 +1,9 @@
 const envWhatsappNumber = (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "").replace(/\D/g, "");
 const envAdminPhone = (process.env.NEXT_PUBLIC_ADMIN_PHONE || "").replace(/\D/g, "");
 const envWhatsappChannelUrl = process.env.NEXT_PUBLIC_WHATSAPP_CHANNEL_URL || "";
-const defaultWhatsappMessage = "Hello RK Studio, I need details about tailoring and fabric services.";
+const defaultWhatsappMessage = "Hi, I want to know about tailoring";
+const envWhatsappChatUrl = process.env.NEXT_PUBLIC_WHATSAPP_CHAT_URL || "";
+const normalizedWhatsappChatUrl = envWhatsappChatUrl.trim();
 const parseAmount = (value: string | undefined, fallback: number) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -24,7 +26,7 @@ export const RK_STUDIO = {
   whatsappNumber: envWhatsappNumber,
   whatsappDisplay: process.env.NEXT_PUBLIC_WHATSAPP_DISPLAY || (envWhatsappNumber ? `+${envWhatsappNumber}` : ""),
   whatsappChatUrl:
-    process.env.NEXT_PUBLIC_WHATSAPP_CHAT_URL
+    normalizedWhatsappChatUrl
     || (envWhatsappNumber ? `https://wa.me/${envWhatsappNumber}?text=${encodeURIComponent(defaultWhatsappMessage)}` : "")
     || envWhatsappChannelUrl,
   instagramUrl: process.env.NEXT_PUBLIC_INSTAGRAM_URL || "",

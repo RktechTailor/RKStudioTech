@@ -25,17 +25,27 @@ const buildOrderMessage = ({ name, phone, service, details }: SendToWhatsAppInpu
 };
 
 export const buildWhatsAppUrl = (input: SendToWhatsAppInput) => {
+  if (!WHATSAPP_NUMBER) {
+    return "";
+  }
+
   const message = buildOrderMessage(input);
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 };
 
 export const sendToWhatsApp = (input: SendToWhatsAppInput) => {
   if (typeof window === "undefined") {
-    return;
+    return false;
   }
 
   const url = buildWhatsAppUrl(input);
+
+  if (!url) {
+    return false;
+  }
+
   window.open(url, "_blank", "noopener,noreferrer");
+  return true;
 };
 
 export const openWhatsAppOrder = ({

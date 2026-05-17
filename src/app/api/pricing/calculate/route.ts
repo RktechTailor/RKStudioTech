@@ -23,6 +23,8 @@ const pricingSchema = z.object({
   paymentType: z.enum(["advance", "full"]).optional(),
 });
 
+type PricingRequestInput = z.infer<typeof pricingSchema>;
+
 const getTailoringFallbackPricing = () => {
   const marketPrice = Number(process.env.NEXT_PUBLIC_TAILORING_MARKET_PRICE || 1000);
   const pricePerUnit = Number(process.env.NEXT_PUBLIC_TAILORING_PRICE_PER_UNIT || marketPrice);
@@ -52,10 +54,49 @@ const buildPricingFromProduct = (
   };
 };
 
+const buildTailoringFallbackResponse = (
+  input: Pick<PricingRequestInput, "quantityOrMeter" | "pickupCharge" | "dropCharge" | "paymentType">,
+  reason: string,
+) => {
+  const fallback = getTailoringFallbackPricing();
+  const breakdown = calculatePricingBreakdown({
+    marketPrice: fallback.marketPrice,
+    pricingType: fallback.pricingType,
+    pricePerUnit: fallback.pricePerUnit,
+    quantityOrMeter: input.quantityOrMeter ?? 1,
+    discountPercentage: fallback.discountPercentage,
+    advancePercentage: fallback.advancePercentage,
+    pickupCharge: input.pickupCharge,
+    dropCharge: input.dropCharge,
+  });
+  const payableAmount = input.paymentType === "advance"
+    ? breakdown.advanceAmount
+    : breakdown.finalPayable;
+
+  console.warn("[pricing] tailoring_fallback_used", {
+    reason,
+    quantityOrMeter: breakdown.quantityOrMeter,
+    finalPayable: breakdown.finalPayable,
+  });
+
+  return NextResponse.json(
+    {
+      success: true,
+      breakdown,
+      payableAmount,
+      fallbackUsed: true,
+      fallbackReason: reason,
+    },
+    { status: 200 },
+  );
+};
+
 export async function POST(request: NextRequest) {
+  let input: PricingRequestInput | null = null;
+
   try {
     const body = await request.json();
-    const input = pricingSchema.parse(body);
+    input = pricingSchema.parse(body);
 
     if (input.lineItems && input.lineItems.length > 0) {
       const linePricingInputs: PricingCalculationInput[] = [];
@@ -99,9 +140,23 @@ export async function POST(request: NextRequest) {
     let pricingInput: PricingCalculationInput;
 
     if (input.productId) {
-      const product = await getProductById(input.productId);
+      let product: Awaited<ReturnType<typeof getProductById>> = null;
+
+      try {
+        product = await getProductById(input.productId);
+      } catch (productLookupError) {
+        if (input.service === "tailoring") {
+          return buildTailoringFallbackResponse(input, `product_lookup_failed:${String(productLookupError)}`);
+        }
+
+        throw productLookupError;
+      }
 
       if (!product) {
+        if (input.service === "tailoring") {
+          return buildTailoringFallbackResponse(input, "product_not_found_for_tailoring");
+        }
+
         return NextResponse.json({ error: "Product not found" }, { status: 404 });
       }
 
@@ -174,6 +229,10 @@ export async function POST(request: NextRequest) {
         { error: "Invalid pricing request", details: error.issues },
         { status: 400 },
       );
+    }
+
+    if (input?.service === "tailoring") {
+      return buildTailoringFallbackResponse(input, "unexpected_calculation_error");
     }
 
     return NextResponse.json(

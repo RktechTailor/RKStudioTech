@@ -12,7 +12,7 @@ import { RK_STUDIO } from "@/utils/constants";
 import { removeFabricCartItem, removeFabricCartItems } from "@/utils/fabricCart";
 import { startRazorpayPayment, buildUpiPaymentLink } from "@/utils/payment";
 import { clearPendingPaymentOrder, readPendingPaymentOrder } from "@/utils/paymentSession";
-import { PricingBreakdown } from "@/utils/pricing";
+import { calculatePricingBreakdown, PricingBreakdown } from "@/utils/pricing";
 import { buildWhatsAppUrl } from "@/utils/whatsapp";
 
 type PaymentMethod = "razorpay" | "upi";
@@ -30,6 +30,7 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("razorpay");
   const [pricingBreakdown, setPricingBreakdown] = useState<PricingBreakdown | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
+  const [pricingNotice, setPricingNotice] = useState("");
   const [upiReference, setUpiReference] = useState("");
   const [upiStarted, setUpiStarted] = useState(false);
   const [pendingOrder, setPendingOrder] = useState<ReturnType<typeof readPendingPaymentOrder>>(null);
@@ -64,6 +65,7 @@ export default function CheckoutPage() {
     const recalculatePricing = async () => {
       if (!pendingOrder) {
         setPricingBreakdown(null);
+        setPricingNotice("");
         return;
       }
 
@@ -96,6 +98,7 @@ export default function CheckoutPage() {
         const payload = (await response.json()) as {
           breakdown?: PricingBreakdown;
           error?: string;
+          fallbackUsed?: boolean;
         };
 
         if (!response.ok || !payload.breakdown) {
@@ -104,13 +107,38 @@ export default function CheckoutPage() {
 
         if (!ignore) {
           setPricingBreakdown(payload.breakdown);
+          setPricingNotice(payload.fallbackUsed
+            ? "Pricing service was temporarily unavailable. Estimated tailoring quote is shown."
+            : "");
         }
       } catch (pricingError) {
         if (!ignore) {
-          const message = pricingError instanceof Error
-            ? pricingError.message
-            : "Unable to calculate pricing.";
-          setError(message);
+          if (pendingOrder.service === "tailoring") {
+            const fallbackPickupCharge = typeof pendingOrder.orderDetails?.pickup_charge === "number"
+              ? Math.max(0, pendingOrder.orderDetails.pickup_charge)
+              : 0;
+            const fallbackDropCharge = typeof pendingOrder.orderDetails?.drop_charge === "number"
+              ? Math.max(0, pendingOrder.orderDetails.drop_charge)
+              : 0;
+            const fallbackBreakdown = calculatePricingBreakdown({
+              marketPrice: 1000,
+              pricingType: "piece",
+              pricePerUnit: 1000,
+              quantityOrMeter: 1,
+              discountPercentage: 5,
+              advancePercentage: 20,
+              pickupCharge: pendingOrder.pricingInput?.pickupCharge ?? fallbackPickupCharge,
+              dropCharge: pendingOrder.pricingInput?.dropCharge ?? fallbackDropCharge,
+            });
+
+            setPricingBreakdown(fallbackBreakdown);
+            setPricingNotice("Pricing service was temporarily unavailable. Estimated tailoring quote is shown.");
+          } else {
+            const message = pricingError instanceof Error
+              ? pricingError.message
+              : "Unable to calculate pricing.";
+            setError(message);
+          }
         }
       } finally {
         if (!ignore) {
@@ -382,6 +410,11 @@ export default function CheckoutPage() {
       details: whatsappDetails,
     });
 
+    if (!url) {
+      setError("Service temporarily unavailable");
+      return;
+    }
+
     setWhatsappUrl(url);
     window.open(url, "_blank", "noopener,noreferrer");
   };
@@ -639,6 +672,7 @@ export default function CheckoutPage() {
               </Typography>
 
               {success ? <Alert severity="success">{success}</Alert> : null}
+              {pricingNotice ? <Alert severity="warning">{pricingNotice}</Alert> : null}
               {error ? <Alert severity="error">{error}</Alert> : null}
 
               <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>

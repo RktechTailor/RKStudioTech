@@ -41,6 +41,8 @@ export default function Navbar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const isAdmin = user && isAdminUser(user);
+  const whatsappLink = RK_STUDIO.whatsappChatUrl;
+  const hasWhatsappLink = Boolean(whatsappLink);
 
   const profileMenuOpen = Boolean(profileAnchor);
   const mobileLinks = useMemo(() => {
@@ -195,10 +197,16 @@ export default function Navbar() {
         >
           <Button
             component="a"
-            href={RK_STUDIO.whatsappChatUrl}
+            href={whatsappLink || undefined}
             target="_blank"
             rel="noopener noreferrer"
             startIcon={<WhatsAppIcon />}
+            onClick={(event) => {
+              if (!hasWhatsappLink) {
+                event.preventDefault();
+              }
+            }}
+            disabled={!hasWhatsappLink}
             sx={{
               borderRadius: 999,
               px: 1.6,
@@ -334,10 +342,16 @@ export default function Navbar() {
           <RKStudioLogo size={38} variant="full" />
           <Button
             component="a"
-            href={RK_STUDIO.whatsappChatUrl}
+            href={whatsappLink || undefined}
             target="_blank"
             rel="noopener noreferrer"
             startIcon={<WhatsAppIcon />}
+            onClick={(event) => {
+              if (!hasWhatsappLink) {
+                event.preventDefault();
+              }
+            }}
+            disabled={!hasWhatsappLink}
             sx={{
               justifyContent: "flex-start",
               borderRadius: 999,

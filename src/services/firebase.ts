@@ -4,6 +4,15 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
+const requiredFirebaseEnvKeys = [
+  "NEXT_PUBLIC_FIREBASE_API_KEY",
+  "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
+  "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+  "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
+  "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+  "NEXT_PUBLIC_FIREBASE_APP_ID",
+] as const;
+
 const requiredFirebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -18,13 +27,22 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-export const isFirebaseConfigured = Object.values(requiredFirebaseConfig).every(Boolean);
+export const firebaseMissingEnvKeys = requiredFirebaseEnvKeys.filter((key) => {
+  const value = process.env[key];
+  return !value || !value.trim();
+});
+
+export const isFirebaseConfigured = firebaseMissingEnvKeys.length === 0;
 
 let firebaseApp: FirebaseApp | null = null;
 let firebaseAnalytics: Analytics | null = null;
 
 export const getFirebaseApp = (): FirebaseApp | null => {
   if (!isFirebaseConfigured) {
+    if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+      throw new Error("Firebase config missing in production");
+    }
+
     return null;
   }
 

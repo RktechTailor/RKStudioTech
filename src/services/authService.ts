@@ -1,5 +1,5 @@
 import { ConfirmationResult, RecaptchaVerifier, signInWithPhoneNumber, updateProfile } from "firebase/auth";
-import { getFirebaseAuth } from "@/services/firebase";
+import { getFirebaseAuth, isFirebaseConfigured } from "@/services/firebase";
 import { saveUserToFirestore } from "@/services/userService";
 import { AuthUser, UserRole } from "@/types/auth";
 
@@ -43,10 +43,24 @@ export const verifyMockOtp = (otp: string): boolean => {
 };
 
 export const getOrCreateRecaptcha = (): RecaptchaVerifier => {
+  if (typeof window === "undefined") {
+    throw new Error("OTP service temporarily unavailable. Please try again.");
+  }
+
+  if (!isFirebaseConfigured && process.env.NODE_ENV === "production") {
+    throw new Error("Firebase config missing in production");
+  }
+
   const auth = getFirebaseAuth();
 
   if (!auth) {
-    throw new Error("Firebase is not configured.");
+    throw new Error("OTP service temporarily unavailable. Please try again.");
+  }
+
+  const recaptchaContainer = document.getElementById("recaptcha-container");
+
+  if (!recaptchaContainer) {
+    throw new Error("OTP service temporarily unavailable. Please try again.");
   }
 
   if (!window.recaptchaVerifier) {
@@ -59,14 +73,28 @@ export const getOrCreateRecaptcha = (): RecaptchaVerifier => {
 };
 
 export const sendOtpToPhone = async (phone: string): Promise<ConfirmationResult> => {
+  if (!isFirebaseConfigured && process.env.NODE_ENV === "production") {
+    throw new Error("Firebase config missing in production");
+  }
+
   const auth = getFirebaseAuth();
 
   if (!auth) {
-    throw new Error("Firebase is not configured.");
+    throw new Error("OTP service temporarily unavailable. Please try again.");
   }
 
   const verifier = getOrCreateRecaptcha();
-  return signInWithPhoneNumber(auth, phone, verifier);
+
+  try {
+    return await signInWithPhoneNumber(auth, phone, verifier);
+  } catch (error) {
+    if (typeof window !== "undefined" && window.recaptchaVerifier) {
+      window.recaptchaVerifier.clear();
+      delete window.recaptchaVerifier;
+    }
+
+    throw error;
+  }
 };
 
 export const verifyOtpAndSaveUser = async (

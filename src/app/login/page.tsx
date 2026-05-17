@@ -37,7 +37,7 @@ import { isAdminPhone } from "@/utils/admin";
 
 const mapOtpErrorMessage = (error: unknown) => {
   if (!(error instanceof FirebaseError)) {
-    return "Could not send OTP. Please try again in a moment.";
+    return "OTP service temporarily unavailable. Please try again.";
   }
 
   switch (error.code) {
@@ -53,9 +53,9 @@ const mapOtpErrorMessage = (error: unknown) => {
     case "auth/configuration-not-found":
     case "auth/billing-not-enabled":
     case "auth/invalid-app-credential":
-      return "OTP service is not available right now. Please contact support.";
+      return "OTP service temporarily unavailable. Please try again.";
     default:
-      return "Could not send OTP. Please try again in a moment.";
+      return "OTP service temporarily unavailable. Please try again.";
   }
 };
 
@@ -261,7 +261,7 @@ export default function LoginPage() {
 
               {!useMockOtp && !isFirebaseConfigured ? (
                 <Alert severity="warning">
-                  Firebase environment values are missing. Add NEXT_PUBLIC_FIREBASE_* for OTP login.
+                  Service temporarily unavailable.
                 </Alert>
               ) : null}
 

@@ -7,6 +7,7 @@ import { RK_STUDIO } from "@/utils/constants";
 
 export default function Footer() {
   const whatsappLink = RK_STUDIO.whatsappChatUrl;
+  const hasWhatsappLink = Boolean(whatsappLink);
 
   return (
     <Box
@@ -31,10 +32,11 @@ export default function Footer() {
               <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.95rem" }}>Contact Us</Typography>
               <Button
                 component="a"
-                href={whatsappLink}
+                href={whatsappLink || undefined}
                 target="_blank"
                 rel="noopener noreferrer"
                 startIcon={<WhatsAppIcon />}
+                disabled={!hasWhatsappLink}
                 sx={{
                   borderRadius: 999,
                   px: 2.2,
