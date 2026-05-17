@@ -8,6 +8,12 @@ import { verifyUserToken } from "@/utils/server/authUtils";
 
 const productDetailsSchema = z
   .object({
+    size: z.string().trim().min(1).max(64).optional(),
+    chest: z.number().positive().optional(),
+    waist: z.number().positive().optional(),
+    length: z.number().positive().optional(),
+    is_customized: z.boolean().optional(),
+    measurements: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
     size_type: z.enum(["standard", "custom"]).optional(),
     size_value: z.string().trim().min(1).max(64).optional(),
     custom_size_notes: z.string().trim().max(500).optional(),

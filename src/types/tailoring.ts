@@ -47,6 +47,11 @@ export interface TailoringOrder {
     name?: string;
     description?: string;
     category?: string;
+    size?: string;
+    chest?: number;
+    waist?: number;
+    length?: number;
+    is_customized?: boolean;
     measurements?: Record<string, string | number>;
     pickup_drop_option?: PickupDropOption;
     pickup_charge?: number;

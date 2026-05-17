@@ -12,6 +12,16 @@ import { saveUserToFirestore, subscribeToUser } from "@/services/userService";
 import { RK_STUDIO } from "@/utils/constants";
 import { createPendingPaymentToken, savePendingPaymentOrder } from "@/utils/paymentSession";
 import { getTailoringValidationMessage } from "@/features/tailoring/utils/validation";
+import {
+  clearTailoringSizeProfile,
+  hasTailoringSizeProfile,
+  readTailoringSizeProfile,
+  writeTailoringSizeProfile,
+} from "@/features/tailoring/utils/sizeProfile";
+import {
+  getSuggestedMeasurementsForSize,
+  parseMeasurementNumber,
+} from "@/features/tailoring/utils/sizeSuggestions";
 import TailoringStepper from "./TailoringStepper";
 
 type FabricSource = "" | "own" | "external" | "rkstudio";
@@ -164,6 +174,9 @@ export default function TailoringForm() {
   const [highlightedProductId, setHighlightedProductId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>("");
+  const [hasSavedSizeProfile, setHasSavedSizeProfile] = useState(false);
+  const [sizeProfileFeedback, setSizeProfileFeedback] = useState("");
+  const [isAutoSuggestedMeasurement, setIsAutoSuggestedMeasurement] = useState(false);
 
   const isLast = activeStep === stepLabels.length - 1;
 
@@ -508,6 +521,10 @@ export default function TailoringForm() {
       const name = formData.customerName.trim() || user?.displayName || "Customer";
       const phone = formData.phone.trim() || user?.phoneNumber || "Not provided";
       const normalizedCustomSize = normalizeSpace(formData.customSizeNotes);
+      const suggested = getSuggestedMeasurementsForSize(formData.size);
+      const chestValue = parseMeasurementNumber(formData.bust);
+      const waistValue = parseMeasurementNumber(formData.waist);
+      const lengthValue = parseMeasurementNumber(formData.length);
       const pickupCharge = formData.pickupDropOption === "pickup_only" || formData.pickupDropOption === "pickup_drop"
         ? DEFAULT_PICKUP_CHARGE
         : 0;
@@ -515,6 +532,12 @@ export default function TailoringForm() {
         ? DEFAULT_DROP_CHARGE
         : 0;
       const workType = formData.design === "simple" ? "simple" : "heavy";
+      const isCustomized = formData.size === CUSTOM_SIZE_VALUE
+        || (Boolean(suggested) && (
+          formData.bust.trim() !== suggested?.chest
+          || formData.waist.trim() !== suggested?.waist
+          || formData.length.trim() !== suggested?.length
+        ));
       const sizePayload = formData.size
         ? formData.size === CUSTOM_SIZE_VALUE
           ? {
@@ -543,6 +566,11 @@ export default function TailoringForm() {
                 category: formData.category || "-",
                 design: formData.design || "-",
                 ...(sizePayload || {}),
+                size: formData.size || undefined,
+                chest: chestValue,
+                waist: waistValue,
+                length: lengthValue,
+                is_customized: isCustomized,
                 work_type: workType,
                 pickup_drop_option: formData.pickupDropOption,
                 pickup_charge: pickupCharge,
@@ -592,6 +620,83 @@ export default function TailoringForm() {
     setActiveStep((prev) => Math.max(0, prev - 1));
   };
 
+  useEffect(() => {
+    const savedProfile = readTailoringSizeProfile();
+
+    if (!savedProfile) {
+      return;
+    }
+
+    setHasSavedSizeProfile(true);
+
+    setFormData((prev) => ({
+      ...prev,
+      size: prev.size || savedProfile.sizeValue,
+      customSizeNotes: prev.customSizeNotes || savedProfile.customSizeNotes,
+      bust: prev.bust || savedProfile.bust,
+      waist: prev.waist || savedProfile.waist,
+      length: prev.length || savedProfile.length,
+      extraMeasurement: prev.extraMeasurement || savedProfile.extraMeasurement,
+    }));
+  }, []);
+
+  const handleSaveSizeProfile = () => {
+    const hasAnyMeasurementData = Boolean(
+      formData.size.trim()
+      || formData.customSizeNotes.trim()
+      || formData.bust.trim()
+      || formData.waist.trim()
+      || formData.length.trim()
+      || formData.extraMeasurement.trim(),
+    );
+
+    if (!hasAnyMeasurementData) {
+      setSizeProfileFeedback("Add measurement details first, then save your size profile.");
+      return;
+    }
+
+    writeTailoringSizeProfile({
+      sizeValue: formData.size.trim(),
+      customSizeNotes: formData.customSizeNotes.trim(),
+      bust: formData.bust.trim(),
+      waist: formData.waist.trim(),
+      length: formData.length.trim(),
+      extraMeasurement: formData.extraMeasurement.trim(),
+      measurements: "",
+    });
+    setHasSavedSizeProfile(true);
+    setSizeProfileFeedback("Size profile saved. You can reuse it for your next orders.");
+  };
+
+  const handleApplySavedSizeProfile = () => {
+    const savedProfile = readTailoringSizeProfile();
+
+    if (!savedProfile) {
+      setHasSavedSizeProfile(false);
+      setSizeProfileFeedback("No saved size profile found yet.");
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      size: savedProfile.sizeValue,
+      customSizeNotes: savedProfile.customSizeNotes,
+      bust: savedProfile.bust,
+      waist: savedProfile.waist,
+      length: savedProfile.length,
+      extraMeasurement: savedProfile.extraMeasurement,
+    }));
+    setIsAutoSuggestedMeasurement(Boolean(getSuggestedMeasurementsForSize(savedProfile.sizeValue)));
+    setSizeProfileFeedback("Saved size profile applied.");
+  };
+
+  const handleClearSavedSizeProfile = () => {
+    clearTailoringSizeProfile();
+    setHasSavedSizeProfile(false);
+    setIsAutoSuggestedMeasurement(false);
+    setSizeProfileFeedback("Saved size profile cleared.");
+  };
+
   return (
     <Card>
       <CardContent>
@@ -636,6 +741,31 @@ export default function TailoringForm() {
             {activeStep === 2 ? (
               <Box>
                 <Typography mb={2}>3. Enter measurements (in inches)</Typography>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} mb={2}>
+                  <Button variant="outlined" onClick={handleSaveSizeProfile}>
+                    Save Size Profile
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    onClick={handleApplySavedSizeProfile}
+                    disabled={!hasSavedSizeProfile && !hasTailoringSizeProfile()}
+                  >
+                    Use Saved Profile
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    onClick={handleClearSavedSizeProfile}
+                    disabled={!hasSavedSizeProfile && !hasTailoringSizeProfile()}
+                  >
+                    Clear Saved Profile
+                  </Button>
+                </Stack>
+                {sizeProfileFeedback ? (
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    {sizeProfileFeedback}
+                  </Alert>
+                ) : null}
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, md: 4 }}>
                     <TextField
@@ -646,12 +776,25 @@ export default function TailoringForm() {
                       value={formData.size}
                       onChange={(event) => {
                         const nextSize = event.target.value;
+                        const suggested = getSuggestedMeasurementsForSize(nextSize);
+                        const isCustom = nextSize === CUSTOM_SIZE_VALUE;
 
                         setFormData((prev) => ({
                           ...prev,
                           size: nextSize,
-                          customSizeNotes: nextSize === CUSTOM_SIZE_VALUE ? prev.customSizeNotes : "",
+                          customSizeNotes: isCustom ? prev.customSizeNotes : "",
+                          bust: isCustom
+                            ? ""
+                            : (suggested?.chest ?? prev.bust),
+                          waist: isCustom
+                            ? ""
+                            : (suggested?.waist ?? prev.waist),
+                          length: isCustom
+                            ? ""
+                            : (suggested?.length ?? prev.length),
                         }));
+
+                        setIsAutoSuggestedMeasurement(Boolean(suggested) && !isCustom);
                       }}
                     >
                       <MenuItem value="">No size selected</MenuItem>
@@ -662,6 +805,21 @@ export default function TailoringForm() {
                       ))}
                     </TextField>
                   </Grid>
+                  {getSuggestedMeasurementsForSize(formData.size) ? (
+                    <Grid size={{ xs: 12 }}>
+                      <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "flex-start", sm: "center" }}>
+                        <Alert severity="info" sx={{ flex: 1 }}>
+                          Suggested measurements based on selected size (you can edit).
+                        </Alert>
+                        <Chip
+                          color={isAutoSuggestedMeasurement ? "success" : "warning"}
+                          label={isAutoSuggestedMeasurement ? "Auto-suggested" : "Manually adjusted"}
+                          variant="outlined"
+                          size="small"
+                        />
+                      </Stack>
+                    </Grid>
+                  ) : null}
                   {formData.size === CUSTOM_SIZE_VALUE ? (
                     <Grid size={{ xs: 12 }}>
                       <TextField
@@ -682,7 +840,10 @@ export default function TailoringForm() {
                       label="Bust"
                       fullWidth
                       value={formData.bust}
-                      onChange={(event) => updateField("bust", event.target.value)}
+                      onChange={(event) => {
+                        setIsAutoSuggestedMeasurement(false);
+                        updateField("bust", event.target.value);
+                      }}
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 4 }}>
@@ -690,7 +851,10 @@ export default function TailoringForm() {
                       label="Waist"
                       fullWidth
                       value={formData.waist}
-                      onChange={(event) => updateField("waist", event.target.value)}
+                      onChange={(event) => {
+                        setIsAutoSuggestedMeasurement(false);
+                        updateField("waist", event.target.value);
+                      }}
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 4 }}>
@@ -698,7 +862,10 @@ export default function TailoringForm() {
                       label="Length"
                       fullWidth
                       value={formData.length}
-                      onChange={(event) => updateField("length", event.target.value)}
+                      onChange={(event) => {
+                        setIsAutoSuggestedMeasurement(false);
+                        updateField("length", event.target.value);
+                      }}
                     />
                   </Grid>
                   <Grid size={{ xs: 12 }}>

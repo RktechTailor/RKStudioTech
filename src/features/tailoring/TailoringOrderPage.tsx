@@ -26,6 +26,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { getFirebaseAuth } from "@/services/firebase";
 import { calculatePricingBreakdown } from "@/utils/pricing";
 import { CapacityInfo, PickupDropOption, TailorCapacity, WorkType } from "@/types/tailoring";
+import {
+  clearTailoringSizeProfile,
+  hasTailoringSizeProfile,
+  readTailoringSizeProfile,
+  writeTailoringSizeProfile,
+} from "@/features/tailoring/utils/sizeProfile";
+import {
+  getSuggestedMeasurementsForSize,
+  parseMeasurementNumber,
+} from "@/features/tailoring/utils/sizeSuggestions";
 
 const CUSTOM_SIZE_VALUE = "custom";
 
@@ -42,11 +52,17 @@ export default function TailoringOrderPage() {
   const [pickupDropOption, setPickupDropOption] = useState<PickupDropOption>("self_visit");
   const [productName, setProductName] = useState("");
   const [productDescription, setProductDescription] = useState("");
+  const [bust, setBust] = useState("");
+  const [waist, setWaist] = useState("");
+  const [length, setLength] = useState("");
   const [measurements, setMeasurements] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [hasSavedSizeProfile, setHasSavedSizeProfile] = useState(false);
+  const [sizeProfileFeedback, setSizeProfileFeedback] = useState("");
+  const [isAutoSuggestedMeasurement, setIsAutoSuggestedMeasurement] = useState(false);
 
   const selectedTailor = tailors.find((tailor) => tailor.id === selectedTailorId) || null;
   const pickupCharge = pickupDropOption === "pickup_only" || pickupDropOption === "pickup_drop"
@@ -90,6 +106,92 @@ export default function TailoringOrderPage() {
       router.replace("/login");
     }
   }, [loading, user, router]);
+
+  useEffect(() => {
+    const savedProfile = readTailoringSizeProfile();
+
+    if (!savedProfile) {
+      return;
+    }
+
+    setHasSavedSizeProfile(true);
+    setSizeValue((prev) => prev || savedProfile.sizeValue);
+    setCustomSizeNotes((prev) => prev || savedProfile.customSizeNotes);
+    setBust((prev) => prev || savedProfile.bust);
+    setWaist((prev) => prev || savedProfile.waist);
+    setLength((prev) => prev || savedProfile.length);
+    setMeasurements((prev) => {
+      if (prev) {
+        return prev;
+      }
+
+      if (savedProfile.measurements) {
+        return savedProfile.measurements;
+      }
+
+      const compact = [
+        savedProfile.bust ? `Bust: ${savedProfile.bust}` : "",
+        savedProfile.waist ? `Waist: ${savedProfile.waist}` : "",
+        savedProfile.length ? `Length: ${savedProfile.length}` : "",
+      ].filter(Boolean).join(", ");
+
+      return compact;
+    });
+  }, []);
+
+  const handleSaveSizeProfile = () => {
+    const hasAnyMeasurementData = Boolean(
+      sizeValue.trim()
+      || customSizeNotes.trim()
+      || bust.trim()
+      || waist.trim()
+      || length.trim()
+      || measurements.trim(),
+    );
+
+    if (!hasAnyMeasurementData) {
+      setSizeProfileFeedback("Add size or measurement details first.");
+      return;
+    }
+
+    writeTailoringSizeProfile({
+      sizeValue: sizeValue.trim(),
+      customSizeNotes: customSizeNotes.trim(),
+      bust: bust.trim(),
+      waist: waist.trim(),
+      length: length.trim(),
+      extraMeasurement: "",
+      measurements: measurements.trim(),
+    });
+    setHasSavedSizeProfile(true);
+    setSizeProfileFeedback("Size profile saved for future tailoring orders.");
+  };
+
+  const handleApplySavedSizeProfile = () => {
+    const savedProfile = readTailoringSizeProfile();
+
+    if (!savedProfile) {
+      setHasSavedSizeProfile(false);
+      setSizeProfileFeedback("No saved size profile found.");
+      return;
+    }
+
+    setSizeValue(savedProfile.sizeValue);
+    setCustomSizeNotes(savedProfile.customSizeNotes);
+    setBust(savedProfile.bust);
+    setWaist(savedProfile.waist);
+    setLength(savedProfile.length);
+    setMeasurements(savedProfile.measurements || measurements);
+    setIsAutoSuggestedMeasurement(Boolean(getSuggestedMeasurementsForSize(savedProfile.sizeValue)));
+    setSizeProfileFeedback("Saved size profile applied.");
+  };
+
+  const handleClearSavedSizeProfile = () => {
+    clearTailoringSizeProfile();
+    setHasSavedSizeProfile(false);
+    setIsAutoSuggestedMeasurement(false);
+    setSizeProfileFeedback("Saved size profile cleared.");
+  };
 
   // Fetch available tailors on mount
   useEffect(() => {
@@ -199,6 +301,16 @@ export default function TailoringOrderPage() {
 
     try {
       setIsLoading(true);
+      const suggested = getSuggestedMeasurementsForSize(sizeValue);
+      const chestValue = parseMeasurementNumber(bust);
+      const waistValue = parseMeasurementNumber(waist);
+      const lengthValue = parseMeasurementNumber(length);
+      const isCustomized = sizeValue === CUSTOM_SIZE_VALUE
+        || (Boolean(suggested) && (
+          bust.trim() !== suggested?.chest
+          || waist.trim() !== suggested?.waist
+          || length.trim() !== suggested?.length
+        ));
 
       const response = await fetch("/api/orders/tailoring/create", {
         method: "POST",
@@ -212,7 +324,17 @@ export default function TailoringOrderPage() {
           productDetails: {
             name: productName,
             description: productDescription,
-            measurements: measurements || undefined,
+            size: sizeValue || undefined,
+            chest: chestValue,
+            waist: waistValue,
+            length: lengthValue,
+            is_customized: isCustomized,
+            measurements: {
+              bust: bust || "-",
+              waist: waist || "-",
+              length: length || "-",
+              notes: measurements || "-",
+            },
             size_type: sizeValue ? (sizeValue === CUSTOM_SIZE_VALUE ? "custom" : "standard") : undefined,
             size_value: sizeValue || undefined,
             custom_size_notes: customSizeNotes.trim() || undefined,
@@ -243,6 +365,9 @@ export default function TailoringOrderPage() {
       // Reset form
       setProductName("");
       setProductDescription("");
+      setBust("");
+      setWaist("");
+      setLength("");
       setMeasurements("");
       setWorkType("simple");
       setSizeValue("");
@@ -398,7 +523,22 @@ export default function TailoringOrderPage() {
                 value={sizeValue}
                 onChange={(e) => {
                   const value = e.target.value;
+                  const suggested = getSuggestedMeasurementsForSize(value);
                   setSizeValue(value);
+
+                  if (value === CUSTOM_SIZE_VALUE) {
+                    setBust("");
+                    setWaist("");
+                    setLength("");
+                    setIsAutoSuggestedMeasurement(false);
+                  } else if (suggested) {
+                    setBust(suggested.chest);
+                    setWaist(suggested.waist);
+                    setLength(suggested.length);
+                    setIsAutoSuggestedMeasurement(true);
+                  } else {
+                    setIsAutoSuggestedMeasurement(false);
+                  }
 
                   if (value !== CUSTOM_SIZE_VALUE) {
                     setCustomSizeNotes("");
@@ -415,6 +555,45 @@ export default function TailoringOrderPage() {
                 <MenuItem value={CUSTOM_SIZE_VALUE}>Custom Size</MenuItem>
               </TextField>
 
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
+                <Button variant="outlined" onClick={handleSaveSizeProfile}>
+                  Save Size Profile
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={handleApplySavedSizeProfile}
+                  disabled={!hasSavedSizeProfile && !hasTailoringSizeProfile()}
+                >
+                  Use Saved Profile
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  onClick={handleClearSavedSizeProfile}
+                  disabled={!hasSavedSizeProfile && !hasTailoringSizeProfile()}
+                >
+                  Clear Saved Profile
+                </Button>
+              </Stack>
+
+              {sizeProfileFeedback ? (
+                <Alert severity="info">{sizeProfileFeedback}</Alert>
+              ) : null}
+
+              {getSuggestedMeasurementsForSize(sizeValue) ? (
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ xs: "flex-start", sm: "center" }}>
+                  <Alert severity="info" sx={{ flex: 1 }}>
+                    Suggested measurements based on selected size (you can edit).
+                  </Alert>
+                  <Chip
+                    color={isAutoSuggestedMeasurement ? "success" : "warning"}
+                    label={isAutoSuggestedMeasurement ? "Auto-suggested" : "Manually adjusted"}
+                    variant="outlined"
+                    size="small"
+                  />
+                </Stack>
+              ) : null}
+
               {sizeValue === CUSTOM_SIZE_VALUE ? (
                 <TextField
                   label="Enter your measurements or size details"
@@ -429,6 +608,39 @@ export default function TailoringOrderPage() {
               ) : null}
 
               {/* Product Details */}
+              <TextField
+                label="Chest"
+                value={bust}
+                onChange={(e) => {
+                  setIsAutoSuggestedMeasurement(false);
+                  setBust(e.target.value);
+                }}
+                fullWidth
+                placeholder="Enter chest in inches"
+              />
+
+              <TextField
+                label="Waist"
+                value={waist}
+                onChange={(e) => {
+                  setIsAutoSuggestedMeasurement(false);
+                  setWaist(e.target.value);
+                }}
+                fullWidth
+                placeholder="Enter waist in inches"
+              />
+
+              <TextField
+                label="Length"
+                value={length}
+                onChange={(e) => {
+                  setIsAutoSuggestedMeasurement(false);
+                  setLength(e.target.value);
+                }}
+                fullWidth
+                placeholder="Enter length in inches"
+              />
+
               <TextField
                 label="Product Name (e.g., Kurta, Shirt)"
                 value={productName}
@@ -448,13 +660,13 @@ export default function TailoringOrderPage() {
               />
 
               <TextField
-                label="Measurements (Optional)"
+                label="Additional Measurements / Notes (Optional)"
                 value={measurements}
                 onChange={(e) => setMeasurements(e.target.value)}
                 fullWidth
                 multiline
                 rows={2}
-                placeholder="Chest: 40, Waist: 32, etc."
+                placeholder="Any extra fit instructions"
               />
 
               {/* Work Type Selection */}
