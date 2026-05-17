@@ -21,6 +21,7 @@ type TailoringFormData = {
   bust: string;
   waist: string;
   length: string;
+  extraMeasurement: string;
   fabricSource: FabricSource;
   fabricType: string;
   fabricColor: string;
@@ -103,6 +104,7 @@ const initialData: TailoringFormData = {
   bust: "",
   waist: "",
   length: "",
+  extraMeasurement: "",
   fabricSource: "",
   fabricType: "",
   fabricColor: "",
@@ -428,9 +430,10 @@ export default function TailoringForm() {
       `Tailoring Category: ${formData.category || "-"}`,
       `Design: ${formData.design || "-"}`,
       `Measurements: Bust ${formData.bust || "-"}, Waist ${formData.waist || "-"}, Length ${formData.length || "-"}`,
+      `Extra Measurement: ${formData.extraMeasurement || "-"}`,
       ...fabricSummaryLines,
     ];
-  }, [fabricSummaryLines, formData.bust, formData.category, formData.design, formData.length, formData.waist]);
+  }, [fabricSummaryLines, formData.bust, formData.category, formData.design, formData.extraMeasurement, formData.length, formData.waist]);
 
   const validationMessage = useMemo(() => {
     if (activeStep === 0 && !formData.category) return "Please select tailoring category.";
@@ -486,6 +489,7 @@ export default function TailoringForm() {
                   bust: formData.bust || "-",
                   waist: formData.waist || "-",
                   length: formData.length || "-",
+                  extraMeasurement: formData.extraMeasurement || "-",
                 },
                 fabricDetails: fabricDetails || {
                   fabricSource: "-",
@@ -585,6 +589,17 @@ export default function TailoringForm() {
                       fullWidth
                       value={formData.length}
                       onChange={(event) => updateField("length", event.target.value)}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <TextField
+                      label="Extra measurement (optional)"
+                      fullWidth
+                      multiline
+                      minRows={2}
+                      placeholder="Any additional size details, notes, or custom measurements"
+                      value={formData.extraMeasurement}
+                      onChange={(event) => updateField("extraMeasurement", event.target.value)}
                     />
                   </Grid>
                 </Grid>
@@ -1071,6 +1086,7 @@ export default function TailoringForm() {
                     <Typography variant="body2">
                       Measurements: Bust {formData.bust || "-"}, Waist {formData.waist || "-"}, Length {formData.length || "-"}
                     </Typography>
+                    <Typography variant="body2">Extra Measurement: {formData.extraMeasurement || "-"}</Typography>
                     {fabricSummaryLines.map((line) => (
                       <Typography key={line} variant="body2">
                         {line}

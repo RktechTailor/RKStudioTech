@@ -1,6 +1,7 @@
 "use client";
 
 import { Box, SxProps, Theme } from "@mui/material";
+import { getBrandingLogoPath } from "@/branding/logoConfig";
 
 type RKStudioLogoProps = {
   size?: number;
@@ -10,19 +11,19 @@ type RKStudioLogoProps = {
 
 const logoMap = {
   full: {
-    src: "/branding/rk-full.svg",
+    src: getBrandingLogoPath("full"),
     width: 320,
     height: 72,
     alt: "RK Studio full logo",
   },
   compact: {
-    src: "/branding/rk-compact.svg",
+    src: getBrandingLogoPath("compact"),
     width: 64,
     height: 64,
     alt: "RK Studio compact logo",
   },
   icon: {
-    src: "/branding/rk-icon.svg",
+    src: getBrandingLogoPath("icon"),
     width: 64,
     height: 64,
     alt: "RK Studio icon",

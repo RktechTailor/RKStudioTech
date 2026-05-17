@@ -4,6 +4,7 @@ import { CssBaseline, ThemeProvider } from "@mui/material";
 import Footer from "@/components/layout/Footer";
 import Navbar from "@/components/layout/Navbar";
 import WhatsAppButton from "@/components/common/WhatsAppButton";
+import { getBrandingLogoPath } from "@/branding/logoConfig";
 import { AuthProvider } from "@/context/AuthContext";
 import { LoadingProvider } from "@/context/LoadingContext";
 import theme from "@/theme/theme";
@@ -13,9 +14,9 @@ export const metadata: Metadata = {
   title: "RK Studio | Tailoring & Fabric in Narnaul",
   description: "RK Studio, Narnaul Haryana 123001 - Tailoring, Fabric, Dupatta",
   icons: {
-    icon: "/branding/rk-compact.svg",
-    shortcut: "/branding/rk-compact.svg",
-    apple: "/branding/rk-compact.svg",
+    icon: getBrandingLogoPath("compact"),
+    shortcut: getBrandingLogoPath("compact"),
+    apple: getBrandingLogoPath("compact"),
   },
 };
 
