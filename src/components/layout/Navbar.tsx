@@ -45,8 +45,9 @@ export default function Navbar({ open, setOpen }: NavbarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const isAdmin = user && isAdminUser(user);
-  const whatsappLink = RK_STUDIO.whatsappChatUrl;
-  const hasWhatsappLink = Boolean(whatsappLink);
+  const whatsappMessage = "Hi, I want to know about tailoring";
+  const whatsappLink = RK_STUDIO.whatsappChatUrl
+    || `https://wa.me/918901501572?text=${encodeURIComponent(whatsappMessage)}`;
 
   const profileMenuOpen = Boolean(profileAnchor);
   const mobileLinks = useMemo(() => {
@@ -107,12 +108,12 @@ export default function Navbar({ open, setOpen }: NavbarProps) {
           maxWidth: 1240,
           width: "100%",
           mx: "auto",
-          px: { xs: 1.5, md: 2.5 },
-          minHeight: { xs: 80, md: 84 },
+          px: { xs: 1.5, md: 1.5, lg: 2.5 },
+          minHeight: { xs: 76, md: 78, lg: 80 },
           display: "grid",
           gridTemplateColumns: { xs: "1fr auto", md: "auto 1fr auto" },
           alignItems: "center",
-          gap: { xs: 1.5, md: 2 },
+          gap: { xs: 1.5, md: 1.1, lg: 2 },
         }}
       >
         <Box
@@ -159,13 +160,14 @@ export default function Navbar({ open, setOpen }: NavbarProps) {
 
         <Stack
           direction="row"
-          spacing={0.8}
+          spacing={{ md: 0.45, lg: 0.8 }}
           sx={{
             display: { xs: "none", md: "flex" },
             alignItems: "center",
             justifyContent: "center",
             justifySelf: "center",
             minWidth: 0,
+            height: "100%",
           }}
         >
           {navLinks.map((link) => (
@@ -177,8 +179,11 @@ export default function Navbar({ open, setOpen }: NavbarProps) {
               sx={{
                 minWidth: 0,
                 borderRadius: 999,
-                px: 1.55,
-                py: 0.72,
+                px: { md: 1.15, lg: 1.55 },
+                height: 40,
+                fontSize: { md: "0.88rem", lg: "0.95rem" },
+                fontWeight: 700,
+                lineHeight: 1,
                 whiteSpace: "nowrap",
                 color: pathname === link.href ? "primary.main" : "text.primary",
                 backgroundColor: pathname === link.href ? alpha("#DBEAFE", 0.95) : "transparent",
@@ -196,30 +201,33 @@ export default function Navbar({ open, setOpen }: NavbarProps) {
 
         <Stack
           direction="row"
-          spacing={1}
-          sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", justifySelf: "end", flexWrap: "nowrap" }}
+          spacing={{ md: 0.6, lg: 1 }}
+          sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", justifySelf: "end", flexWrap: "nowrap", height: "100%" }}
         >
           <Button
             component="a"
-            href={whatsappLink || undefined}
+            href={whatsappLink}
             target="_blank"
             rel="noopener noreferrer"
             startIcon={<WhatsAppIcon />}
-            onClick={(event) => {
-              if (!hasWhatsappLink) {
-                event.preventDefault();
-              }
-            }}
-            disabled={!hasWhatsappLink}
             sx={{
               borderRadius: 999,
-              px: 1.6,
-              py: 0.72,
+              px: { md: 0.8, lg: 1.6 },
+              height: { md: 38, lg: 40 },
+              fontSize: { md: "0.8rem", lg: "0.95rem" },
+              fontWeight: 700,
+              lineHeight: 1,
               whiteSpace: "nowrap",
               minWidth: "fit-content",
               color: "#166534",
               bgcolor: alpha("#DCFCE7", 0.92),
               border: `1px solid ${alpha("#86EFAC", 0.86)}`,
+              "& .MuiButton-startIcon": {
+                mr: { md: 0.45, lg: 0.75 },
+              },
+              "& .MuiSvgIcon-root": {
+                fontSize: { md: "0.96rem", lg: "1.2rem" },
+              },
               "&:hover": {
                 bgcolor: alpha("#DCFCE7", 1),
               },
@@ -234,8 +242,11 @@ export default function Navbar({ open, setOpen }: NavbarProps) {
                 startIcon={<AccountCircleOutlinedIcon />}
                 sx={{
                   borderRadius: 999,
-                  px: 1.6,
-                  py: 0.72,
+                  px: { md: 1.05, lg: 1.6 },
+                  height: 40,
+                  fontSize: { md: "0.84rem", lg: "0.95rem" },
+                  fontWeight: 700,
+                  lineHeight: 1,
                   whiteSpace: "nowrap",
                   minWidth: "fit-content",
                   color: "text.primary",
@@ -297,8 +308,11 @@ export default function Navbar({ open, setOpen }: NavbarProps) {
               startIcon={<AccountCircleOutlinedIcon />}
               sx={{
                 borderRadius: 999,
-                px: 1.6,
-                py: 0.72,
+                px: { md: 1.05, lg: 1.6 },
+                height: 40,
+                fontSize: { md: "0.84rem", lg: "0.95rem" },
+                fontWeight: 700,
+                lineHeight: 1,
                 whiteSpace: "nowrap",
                 minWidth: "fit-content",
                 color: "primary.main",
@@ -346,16 +360,10 @@ export default function Navbar({ open, setOpen }: NavbarProps) {
           <RKStudioLogo size={38} variant="full" />
           <Button
             component="a"
-            href={whatsappLink || undefined}
+            href={whatsappLink}
             target="_blank"
             rel="noopener noreferrer"
             startIcon={<WhatsAppIcon />}
-            onClick={(event) => {
-              if (!hasWhatsappLink) {
-                event.preventDefault();
-              }
-            }}
-            disabled={!hasWhatsappLink}
             sx={{
               justifyContent: "flex-start",
               borderRadius: 999,

@@ -208,51 +208,33 @@ export default function LoginPage() {
         >
           <CardContent sx={{ p: { xs: 2.5, md: 4 } }}>
             <Stack spacing={3}>
-              <Stack spacing={2} alignItems="center">
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  spacing={{ xs: 1.5, sm: 1.4 }}
-                  alignItems="center"
-                  sx={{ width: "100%" }}
+              <Stack spacing={1.35} alignItems="center" sx={{ textAlign: "center" }}>
+                <RKStudioLogo size={44} variant="full" />
+                <Typography
+                  variant="h4"
+                  sx={{
+                    fontWeight: 800,
+                    fontSize: { xs: "1.75rem", sm: "2rem" },
+                    lineHeight: 1.15,
+                    letterSpacing: "-0.02em",
+                    maxWidth: 320,
+                    background: "linear-gradient(135deg, #0F2F7A 0%, #2563EB 55%, #6D28D9 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                  }}
                 >
-                  <RKStudioLogo size={42} variant="full" />
-                  <Stack spacing={1} alignItems={{ xs: "center", sm: "flex-start" }} sx={{ width: "100%" }}>
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      alignItems="center"
-                      justifyContent={{ xs: "center", sm: "flex-start" }}
-                      useFlexGap
-                      flexWrap="wrap"
-                    >
-                      <Typography
-                        variant="h4"
-                        sx={{
-                          fontWeight: 800,
-                          fontSize: { xs: "2rem", sm: "2.125rem" },
-                          textAlign: { xs: "center", sm: "left" },
-                          background: "linear-gradient(135deg, #0F2F7A 0%, #2563EB 55%, #6D28D9 100%)",
-                          WebkitBackgroundClip: "text",
-                          WebkitTextFillColor: "transparent",
-                        }}
-                      >
-                        Sign in to RK Studio
-                      </Typography>
-                      <Chip size="small" label="Secure" color="secondary" />
-                    </Stack>
-                    <Typography
-                      color="text.secondary"
-                      sx={{
-                        textAlign: "center",
-                        lineHeight: 1.5,
-                        maxWidth: 280,
-                        mx: "auto",
-                      }}
-                    >
-                      Sign in to manage tailoring orders, saved items, and support.
-                    </Typography>
-                  </Stack>
-                </Stack>
+                  Sign in to RK Studio
+                </Typography>
+                <Chip size="small" label="Secure" color="secondary" />
+                <Typography
+                  color="text.secondary"
+                  sx={{
+                    lineHeight: 1.5,
+                    maxWidth: 320,
+                  }}
+                >
+                  Sign in to manage tailoring orders, saved items, and support.
+                </Typography>
               </Stack>
 
               <ToggleButtonGroup

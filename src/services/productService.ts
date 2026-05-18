@@ -23,6 +23,28 @@ import { getFirebaseDb, getFirebaseStorage } from "@/services/firebase";
 
 export type ProductCategory = "fabric" | "dupatta";
 
+const normalizeCategory = (value: unknown): ProductCategory => {
+  if (typeof value !== "string") {
+    return "fabric";
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized.includes("dupatta") || normalized.includes("dupata") || normalized.includes("chunni") || normalized.includes("stole")) {
+    return "dupatta";
+  }
+
+  return "fabric";
+};
+
+const getCategoryVariants = (category: ProductCategory): string[] => {
+  const base = category.trim();
+  const capitalized = `${base.charAt(0).toUpperCase()}${base.slice(1)}`;
+  const upper = base.toUpperCase();
+
+  return Array.from(new Set([base, capitalized, upper]));
+};
+
 export type CatalogProduct = {
   id: string;
   name: string;
@@ -102,7 +124,7 @@ const toProduct = (id: string, data: Partial<CatalogProduct>): CatalogProduct =>
         ? "fabric"
         : "piece",
   type: data.type || "general",
-  category: (data.category as ProductCategory) || "fabric",
+  category: normalizeCategory(data.category),
   image: data.image || "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=80",
   tag: data.tag || "daily wear",
   createdAt: (data.createdAt as Timestamp) || null,
@@ -282,11 +304,7 @@ export const subscribeToProductsByCategory = (
     return () => undefined;
   }
 
-  const productsQuery = query(
-    collection(db, "products"),
-    where("category", "==", category),
-    limit(100),
-  );
+  const productsQuery = query(collection(db, "products"), limit(200));
 
   return onSnapshot(
     productsQuery,
@@ -294,10 +312,11 @@ export const subscribeToProductsByCategory = (
       const firestoreProducts = snapshot.docs.map((productDoc) =>
         toProduct(productDoc.id, productDoc.data() as Partial<CatalogProduct>),
       );
+      const categoryProducts = firestoreProducts.filter((product) => product.category === category);
 
       onProducts(
-        firestoreProducts.length
-          ? firestoreProducts.sort(byCreatedAtDesc)
+        categoryProducts.length
+          ? categoryProducts.sort(byCreatedAtDesc)
           : allowMockCatalogFallback
             ? dummyCatalogProducts.filter((product) => product.category === category)
             : [],
@@ -333,23 +352,35 @@ export const getProductsByCategoryPage = async (
     };
   }
 
-  const productsQuery = cursor
-    ? query(
-      collection(db, "products"),
-      where("category", "==", category),
-      startAfter(cursor),
-      limit(pageSize),
-    )
-    : query(
-      collection(db, "products"),
-      where("category", "==", category),
-      limit(pageSize),
-    );
+  let snapshot;
 
-  const snapshot = await getDocs(productsQuery);
-  const products = snapshot.docs.map((productDoc) =>
-    toProduct(productDoc.id, productDoc.data() as Partial<CatalogProduct>),
-  );
+  try {
+    const categoryVariants = getCategoryVariants(category);
+    const productsQuery = cursor
+      ? query(
+        collection(db, "products"),
+        where("category", "in", categoryVariants),
+        startAfter(cursor),
+        limit(pageSize),
+      )
+      : query(
+        collection(db, "products"),
+        where("category", "in", categoryVariants),
+        limit(pageSize),
+      );
+
+    snapshot = await getDocs(productsQuery);
+  } catch {
+    const fallbackQuery = cursor
+      ? query(collection(db, "products"), startAfter(cursor), limit(pageSize * 2))
+      : query(collection(db, "products"), limit(pageSize * 2));
+
+    snapshot = await getDocs(fallbackQuery);
+  }
+
+  const products = snapshot.docs
+    .map((productDoc) => toProduct(productDoc.id, productDoc.data() as Partial<CatalogProduct>))
+    .filter((product) => product.category === category);
   const nextCursor = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : cursor;
 
   if (!products.length && allowMockCatalogFallback) {
