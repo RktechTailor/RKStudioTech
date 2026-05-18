@@ -83,12 +83,6 @@ export default function TailoringOrderPage() {
   });
 
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    if (user?.provider === "mock") {
-      return {
-        Authorization: `Bearer mock:${user.uid}:${user.role || "user"}`,
-      };
-    }
-
     const auth = getFirebaseAuth();
     const token = await auth?.currentUser?.getIdToken();
 

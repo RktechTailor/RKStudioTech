@@ -15,7 +15,6 @@ const lineItemSchema = z.object({
 });
 
 const finalizeSchema = z.object({
-  userId: z.string().min(1).optional(),
   service: z.enum(["tailoring", "fabric", "dupatta"]),
   customerPhone: z.string().optional(),
   items: z.array(z.string()).optional(),
@@ -143,7 +142,7 @@ const toPositiveNumber = (value: unknown): number | null => {
 };
 
 const createSafeOrder = async (
-  requesterUid: string,
+  uid: string,
   payload: {
     productId: string;
     total: number;
@@ -159,7 +158,7 @@ const createSafeOrder = async (
   await orderRef.set({
     id: orderRef.id,
     orderCode: businessOrderId,
-    userId: requesterUid,
+    userId: uid,
     phone: payload.phone || null,
     normalizedPhone,
     items: [],
@@ -208,6 +207,8 @@ const createSafeOrder = async (
     createdAt: FieldValue.serverTimestamp(),
   });
 
+  console.log("ORDER SAVED FOR UID:", uid);
+
   return {
     orderId: orderRef.id,
     businessOrderId,
@@ -239,7 +240,7 @@ export async function POST(request: NextRequest) {
     console.log("FINALIZE USER UID:", uid);
 
     if (!uid) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "User not authenticated" }, { status: 401 });
     }
 
     body = await request.json();
@@ -334,7 +335,7 @@ export async function POST(request: NextRequest) {
       transaction.set(orderRef, {
         id: orderRef.id,
         orderCode: businessOrderId,
-          userId: resolvedUserId,
+        userId: resolvedUserId,
         phone: input.customerPhone || null,
         normalizedPhone,
         items: input.items || [],
@@ -376,7 +377,7 @@ export async function POST(request: NextRequest) {
         statusHistory: [
           {
             status: "pending",
-              updatedAt: new Date(),
+            updatedAt: new Date(),
             note: "Order created",
           },
         ],
@@ -384,6 +385,8 @@ export async function POST(request: NextRequest) {
         createdAt: FieldValue.serverTimestamp(),
       });
     });
+
+    console.log("ORDER SAVED FOR UID:", resolvedUserId);
 
     console.info("[orders] finalize_success", {
       orderId: orderRef.id,

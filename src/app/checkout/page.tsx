@@ -373,22 +373,6 @@ export default function CheckoutPage() {
   }, [pendingOrder, pricingBreakdown]);
 
   const getAuthContext = async (): Promise<{ headers: Record<string, string>; uid: string; phone: string }> => {
-    if (user?.provider === "mock") {
-      const mockPhone = (user.phoneNumber || "").trim();
-
-      if (!mockPhone) {
-        throw new Error("Phone number missing from user");
-      }
-
-      return {
-        headers: {
-          Authorization: `Bearer mock:${user.uid}:${user.role || "user"}`,
-        },
-        uid: user.uid,
-        phone: mockPhone,
-      };
-    }
-
     const auth = getFirebaseAuth() || getAuth();
     const currentUser = auth?.currentUser;
 

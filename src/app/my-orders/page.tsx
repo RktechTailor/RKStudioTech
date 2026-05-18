@@ -17,12 +17,14 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import Layout from "@/components/layout/Layout";
 import OrderTimeline from "@/components/orders/OrderTimeline";
 import { useAuth } from "@/hooks/useAuth";
-import { getOrderStatusMessage, OrderStatus, normalizeOrderStatus } from "@/services/orderService";
-import { useOrders } from "@/hooks/useOrders";
+import { getFirebaseAuth, getFirebaseDb } from "@/services/firebase";
+import { getOrderStatusMessage, OrderStatus, UserOrder, normalizeOrderStatus } from "@/services/orderService";
 import { buildWhatsAppChatUrl, formatPhone } from "@/utils/whatsapp";
 
 const getStatusColor = (status: OrderStatus) => {
@@ -59,8 +61,103 @@ const formatOrderDate = (date?: { toDate?: () => Date } | null) => {
 };
 
 export default function MyOrdersPage() {
-  const { user } = useAuth();
-  const { orders, loading, error } = useOrders({ mode: "phone", phone: user?.phoneNumber || "" });
+  const { user: authUser, loading: authLoading } = useAuth();
+  const [orders, setOrders] = useState<UserOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadOrders = async () => {
+      if (authLoading) {
+        return;
+      }
+
+      const auth = getFirebaseAuth();
+      const user = auth?.currentUser;
+
+      if (!user) {
+        if (!cancelled) {
+          setOrders([]);
+          setError("");
+          setLoading(false);
+        }
+        return;
+      }
+
+      const db = getFirebaseDb();
+
+      if (!db) {
+        if (!cancelled) {
+          setOrders([]);
+          setError("Could not fetch orders.");
+          setLoading(false);
+        }
+        return;
+      }
+
+      if (!cancelled) {
+        setLoading(true);
+        setError("");
+      }
+
+      try {
+        const ordersQuery = query(
+          collection(db, "orders"),
+          where("userId", "==", user.uid),
+        );
+
+        const snapshot = await getDocs(ordersQuery);
+
+        const nextOrders = snapshot.docs.map((docSnapshot) => ({
+          id: docSnapshot.id,
+          ...docSnapshot.data(),
+        })) as UserOrder[];
+
+        nextOrders.sort((a, b) => {
+          const aMillis = a.createdAt?.toMillis?.() ?? 0;
+          const bMillis = b.createdAt?.toMillis?.() ?? 0;
+          return bMillis - aMillis;
+        });
+
+        if (!cancelled) {
+          setOrders(nextOrders);
+        }
+      } catch (fetchError: unknown) {
+        const errorCode = typeof fetchError === "object" && fetchError !== null && "code" in fetchError
+          ? String((fetchError as { code?: unknown }).code || "")
+          : "";
+
+        if (errorCode === "permission-denied") {
+          console.error("My Orders permission error: query must filter by authenticated userId.", fetchError);
+          if (!cancelled) {
+            setError("Could not load your orders due to a permissions issue. Please sign in again.");
+          }
+        } else {
+          console.error("My Orders fetch error:", fetchError);
+          if (!cancelled) {
+            setError("Could not fetch orders.");
+          }
+        }
+
+        if (!cancelled) {
+          setOrders([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void loadOrders();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, authUser?.uid]);
+
   const latestOrder = orders[0];
   const supportPhone = formatPhone("9198901501572");
   const readyOrderHelpUrl = buildWhatsAppChatUrl(supportPhone, "My order is ready. Please share delivery details");

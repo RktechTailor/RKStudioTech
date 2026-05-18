@@ -42,7 +42,7 @@ export default function MyOrderDetailsPage() {
   const { user } = useAuth();
   const params = useParams<{ id: string }>();
   const orderId = params?.id || "";
-  const { orders, loading, error } = useOrders({ mode: "phone", phone: user?.phoneNumber || "" });
+  const { orders, loading, error } = useOrders({ mode: "user", userId: user?.uid });
 
   const order = orders.find((item) => item.id === orderId);
   const supportPhone = formatPhone("9198901501572");

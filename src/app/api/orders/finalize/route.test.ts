@@ -21,6 +21,36 @@ vi.mock("firebase-admin/auth", () => {
   };
 });
 
+vi.mock("@/lib/firebaseAdmin", () => {
+  const makeRef = (collection: string, id?: string) => {
+    const resolvedId = id || `${collection}-generated`;
+    return {
+      id: resolvedId,
+      path: `${collection}/${resolvedId}`,
+      set: vi.fn(async () => undefined),
+    };
+  };
+
+  const db = {
+    collection: (name: string) => ({
+      doc: (id?: string) => makeRef(name, id),
+    }),
+    runTransaction: async (callback: (transaction: { get: (ref: unknown) => Promise<{ exists: boolean }>; set: (...args: unknown[]) => void }) => Promise<void>) => {
+      await callback({
+        get: async () => ({ exists: paymentAlreadyProcessed }),
+        set: transactionSet,
+      });
+    },
+  };
+
+  return {
+    getAdminAuth: vi.fn(() => ({
+      verifyIdToken: vi.fn(async () => ({ uid: "user-1", role: "user" })),
+    })),
+    getAdminDb: vi.fn(() => db),
+  };
+});
+
 vi.mock("firebase-admin/firestore", () => {
   const makeRef = (collection: string, id?: string) => {
     const resolvedId = id || `${collection}-generated`;
@@ -78,8 +108,8 @@ import { POST } from "@/app/api/orders/finalize/route";
 
 const buildRequest = (overrides?: Partial<Record<string, unknown>>) => {
   const body = {
-    userId: "user-1",
     service: "fabric",
+    customerPhone: "9999999999",
     productId: "prod-1",
     orderDetails: { color: "red" },
     paymentType: "full",
@@ -97,7 +127,7 @@ const buildRequest = (overrides?: Partial<Record<string, unknown>>) => {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: "Bearer mock:user-1:user",
+      Authorization: "Bearer firebase-test-token",
     },
     body: JSON.stringify(body),
   }) as NextRequest;
