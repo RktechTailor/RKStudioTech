@@ -92,9 +92,9 @@ const buildChecks = () => {
 
   const firebaseAdminChecks: CheckResult[] = [
     {
-      key: "FIREBASE_ADMIN_EMAIL",
+      key: "FIREBASE_ADMIN_CLIENT_EMAIL / FIREBASE_ADMIN_EMAIL",
       label: "Server auth account linked",
-      ok: isTruthy(process.env.FIREBASE_ADMIN_EMAIL),
+      ok: isTruthy(process.env.FIREBASE_ADMIN_CLIENT_EMAIL) || isTruthy(process.env.FIREBASE_ADMIN_EMAIL),
       help: "Add server admin email.",
     },
     {

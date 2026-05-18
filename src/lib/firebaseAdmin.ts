@@ -24,7 +24,7 @@ const readEnvValue = (value: string | undefined): string => {
 
 const getAdminEnv = () => {
 	const projectId = readEnvValue(process.env.FIREBASE_ADMIN_PROJECT_ID);
-	const clientEmail = readEnvValue(process.env.FIREBASE_ADMIN_CLIENT_EMAIL);
+	const clientEmail = readEnvValue(process.env.FIREBASE_ADMIN_CLIENT_EMAIL || process.env.FIREBASE_ADMIN_EMAIL);
 	const privateKey = readEnvValue(process.env.FIREBASE_ADMIN_PRIVATE_KEY).replace(/\\n/g, "\n");
 
 	const missing: string[] = [];
@@ -34,7 +34,7 @@ const getAdminEnv = () => {
 	}
 
 	if (!clientEmail) {
-		missing.push("FIREBASE_ADMIN_CLIENT_EMAIL");
+		missing.push("FIREBASE_ADMIN_CLIENT_EMAIL or FIREBASE_ADMIN_EMAIL");
 	}
 
 	if (!privateKey) {

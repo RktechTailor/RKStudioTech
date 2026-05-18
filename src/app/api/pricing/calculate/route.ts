@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebaseAdmin";
+import { getProductById } from "@/services/productService";
 import {
   calculatePricingBreakdown,
   calculatePricingForLineItems,
@@ -96,12 +97,62 @@ const extractStrictPrice = (product: Record<string, unknown>): number | null => 
   return null;
 };
 
+const toPricingProduct = (product: Record<string, unknown>) => {
+  const price = extractStrictPrice(product);
+
+  return {
+    marketPrice: typeof product.marketPrice === "number" ? product.marketPrice : price ?? 0,
+    pricingType: normalizePricingType(product.pricingType, product.productType),
+    pricePerUnit: typeof product.pricePerUnit === "number" ? product.pricePerUnit : price ?? 0,
+    discountPercentage: typeof product.discountPercentage === "number" ? product.discountPercentage : 0,
+    advancePercentage: typeof product.advancePercentage === "number" ? product.advancePercentage : 20,
+    price,
+  };
+};
+
+const loadProductById = async (productId: string) => {
+  try {
+    const db = getAdminDb();
+    const snap = await db.collection("products").doc(productId).get();
+
+    if (snap.exists) {
+      return snap.data() as Record<string, unknown>;
+    }
+
+    const publicProduct = await getProductById(productId);
+
+    return publicProduct ? ({
+      ...publicProduct,
+      productType: publicProduct.productType,
+      pricingType: publicProduct.pricingType,
+      price: publicProduct.price,
+      pricePerUnit: publicProduct.pricePerUnit,
+      marketPrice: publicProduct.marketPrice,
+      discountPercentage: publicProduct.discountPercentage,
+      advancePercentage: publicProduct.advancePercentage,
+    } as Record<string, unknown>) : null;
+  } catch (error) {
+    console.warn("PRICING ADMIN DB UNAVAILABLE, falling back to public product lookup:", error);
+
+    const product = await getProductById(productId);
+
+    return product ? ({
+      ...product,
+      productType: product.productType,
+      pricingType: product.pricingType,
+      price: product.price,
+      pricePerUnit: product.pricePerUnit,
+      marketPrice: product.marketPrice,
+      discountPercentage: product.discountPercentage,
+      advancePercentage: product.advancePercentage,
+    } as Record<string, unknown>) : null;
+  }
+};
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as PricingRequestInput;
     console.log("PRICING BODY:", body);
-
-    const db = getAdminDb();
 
     const input: PricingRequestInput = {
       productId: typeof body.productId === "string" ? body.productId.trim() : undefined,
@@ -118,33 +169,32 @@ export async function POST(request: NextRequest) {
 
       for (const line of input.lineItems) {
         const lineProductId = line.productId.trim();
-        const snap = await db.collection("products").doc(lineProductId).get();
-        console.log("DOC EXISTS:", snap.exists);
+        const product = await loadProductById(lineProductId);
 
-        if (!snap.exists) {
+        console.log("DOC EXISTS:", Boolean(product));
+
+        if (!product) {
           console.error("PRODUCT NOT FOUND:", lineProductId);
           return NextResponse.json(buildFallbackResponse("product_not_found"), { status: 200 });
         }
 
-        const product = snap.data() as Record<string, unknown>;
         console.log("PRODUCT DATA:", product);
 
-        const price = extractStrictPrice(product);
+        const pricingSource = toPricingProduct(product);
+        const price = pricingSource.price;
 
         if (price === null) {
           console.error("PRICE INVALID:", product);
           return NextResponse.json(buildFallbackResponse("price_missing"), { status: 200 });
         }
 
-        const pricingType = normalizePricingType(product.pricingType, product.productType);
-
         linePricingInputs.push({
-          marketPrice: typeof product.marketPrice === "number" ? product.marketPrice : price,
-          pricingType,
-          pricePerUnit: typeof product.pricePerUnit === "number" ? product.pricePerUnit : price,
+          marketPrice: pricingSource.marketPrice,
+          pricingType: pricingSource.pricingType,
+          pricePerUnit: pricingSource.pricePerUnit,
           quantityOrMeter: Number.isFinite(line.quantityOrMeter) ? line.quantityOrMeter : 1,
-          discountPercentage: typeof product.discountPercentage === "number" ? product.discountPercentage : 0,
-          advancePercentage: typeof product.advancePercentage === "number" ? product.advancePercentage : 20,
+          discountPercentage: pricingSource.discountPercentage,
+          advancePercentage: pricingSource.advancePercentage,
         });
       }
 
@@ -174,32 +224,31 @@ export async function POST(request: NextRequest) {
     }
 
     const productId = input.productId.trim();
-    const snap = await db.collection("products").doc(productId).get();
-    console.log("DOC EXISTS:", snap.exists);
+    const product = await loadProductById(productId);
+    console.log("DOC EXISTS:", Boolean(product));
 
-    if (!snap.exists) {
+    if (!product) {
       console.error("PRODUCT NOT FOUND:", productId);
       return NextResponse.json(buildFallbackResponse("product_not_found"), { status: 200 });
     }
 
-    const product = snap.data() as Record<string, unknown>;
     console.log("PRODUCT DATA:", product);
 
-    const price = extractStrictPrice(product);
+    const pricingSource = toPricingProduct(product);
+    const price = pricingSource.price;
 
     if (price === null) {
       console.error("PRICE INVALID:", product);
       return NextResponse.json(buildFallbackResponse("price_missing"), { status: 200 });
     }
 
-    const pricingType = normalizePricingType(input.pricingType, product.productType);
     const pricingBreakdown = calculatePricingBreakdown({
-      marketPrice: typeof product.marketPrice === "number" ? product.marketPrice : price,
-      pricingType,
-      pricePerUnit: typeof product.pricePerUnit === "number" ? product.pricePerUnit : price,
+      marketPrice: pricingSource.marketPrice,
+      pricingType: pricingSource.pricingType,
+      pricePerUnit: pricingSource.pricePerUnit,
       quantityOrMeter: input.quantityOrMeter ?? 1,
-      discountPercentage: typeof product.discountPercentage === "number" ? product.discountPercentage : 0,
-      advancePercentage: typeof product.advancePercentage === "number" ? product.advancePercentage : 20,
+      discountPercentage: pricingSource.discountPercentage,
+      advancePercentage: pricingSource.advancePercentage,
       pickupCharge: input.pickupCharge,
       dropCharge: input.dropCharge,
     });
@@ -223,6 +272,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(response, { status: 200 });
   } catch (error) {
     console.error("PRICING ERROR:", error);
-    return NextResponse.json(buildFallbackResponse("unexpected_error"), { status: 200 });
+    return NextResponse.json(buildFallbackResponse("db_unavailable"), { status: 200 });
   }
 }
