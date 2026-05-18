@@ -1,5 +1,6 @@
 import { doc, getDoc } from "firebase/firestore";
 import { getFirebaseDb } from "@/services/firebase";
+import { isAdminPhone } from "@/utils/admin";
 
 const normalizeRole = (value: unknown) => {
   const role = typeof value === "string" ? value.toLowerCase() : "user";
@@ -16,6 +17,10 @@ export const resolveUserRoleFromFirestore = async ({ uid, phoneNumber }: Resolve
 
   if (!db) {
     return "user" as const;
+  }
+
+  if (uid?.startsWith("mock-")) {
+    return isAdminPhone(phoneNumber) ? "admin" as const : "user" as const;
   }
 
   try {
