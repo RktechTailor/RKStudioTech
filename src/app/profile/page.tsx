@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import Layout from "@/components/layout/Layout";
 import { useAuth } from "@/hooks/useAuth";
 import { AppUser, saveUserToFirestore, subscribeToUser } from "@/services/userService";
+import { readMockProfileForUser, saveMockProfileForUser } from "@/utils/mockProfileStore";
 
 type ProfileForm = {
   name: string;
@@ -50,14 +51,16 @@ export default function ProfilePage() {
     }
 
     if (user.provider === "mock") {
+      const storedMockProfile = readMockProfileForUser(user.uid);
+
       setForm({
-        name: user.displayName || "",
-        phone: user.phoneNumber || "",
-        address: "",
-        chest: "",
-        waist: "",
-        hip: "",
-        length: "",
+        name: storedMockProfile?.name || user.displayName || "",
+        phone: storedMockProfile?.phone || user.phoneNumber || "",
+        address: storedMockProfile?.address || "",
+        chest: storedMockProfile?.measurements?.chest || "",
+        waist: storedMockProfile?.measurements?.waist || "",
+        hip: storedMockProfile?.measurements?.hip || "",
+        length: storedMockProfile?.measurements?.length || "",
       });
       setLoading(false);
       return;
@@ -110,6 +113,24 @@ export default function ProfilePage() {
 
     try {
       setSaving(true);
+
+      if (user.provider === "mock") {
+        saveMockProfileForUser({
+          userId: user.uid,
+          name: form.name.trim(),
+          phone: form.phone.trim(),
+          address: form.address.trim(),
+          measurements: {
+            chest: form.chest.trim(),
+            waist: form.waist.trim(),
+            hip: form.hip.trim(),
+            length: form.length.trim(),
+          },
+        });
+
+        setSuccess("Profile updated successfully.");
+        return;
+      }
 
       await saveUserToFirestore({
         uid: user.uid,

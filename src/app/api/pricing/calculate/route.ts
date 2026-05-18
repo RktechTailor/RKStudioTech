@@ -36,8 +36,8 @@ type PricingRequestInput = {
 };
 
 type PricingApiResponse = {
-  success: true;
-  total: number;
+  success: boolean;
+  total?: number;
   breakdown?: {
     base?: number;
     basePrice?: number;
@@ -48,6 +48,7 @@ type PricingApiResponse = {
   fallback: boolean;
   pricingBreakdown?: PricingBreakdown;
   reason?: "product_not_found" | "price_missing" | "invalid_payload" | "db_unavailable" | "unexpected_error";
+  error?: string;
 };
 
 const toFiniteNumber = (value: unknown, fallback: number) => {
@@ -273,7 +274,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (!input.productId) {
-      return NextResponse.json(buildFallbackResponse("invalid_payload"), { status: 200 });
+      return NextResponse.json({
+        success: false,
+        fallback: true,
+        reason: "invalid_payload",
+        error: "productId or lineItems are required.",
+      } satisfies PricingApiResponse, { status: 400 });
     }
 
     const productId = input.productId.trim();
