@@ -180,26 +180,52 @@ export default function LoginPage() {
 
   return (
     <Layout>
-      <Box sx={{ maxWidth: 560, mx: "auto" }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: { xs: "calc(100dvh - 220px)", sm: "auto" },
+          width: "100%",
+          px: 2,
+          pb: { xs: 10, sm: 3 },
+        }}
+      >
         <Card
           sx={{
-            borderRadius: 4,
+            width: "100%",
+            maxWidth: { xs: 360, sm: 460 },
+            borderRadius: 2.5,
             overflow: "hidden",
-            boxShadow: "0 24px 54px rgba(15, 23, 42, 0.16)",
+            boxShadow: "0 14px 30px rgba(15, 23, 42, 0.12)",
             background: "linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(246,249,255,0.98) 100%)",
           }}
         >
-          <CardContent sx={{ p: { xs: 3, md: 4 } }}>
-            <Stack spacing={2.5}>
-              <Stack spacing={1.5} alignItems="flex-start">
-                <Stack direction="row" spacing={1.4} alignItems="center">
+          <CardContent sx={{ p: { xs: 2.5, md: 4 } }}>
+            <Stack spacing={3}>
+              <Stack spacing={2} alignItems="center">
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={{ xs: 1.5, sm: 1.4 }}
+                  alignItems="center"
+                  sx={{ width: "100%" }}
+                >
                   <RKStudioLogo size={42} variant="full" />
-                  <Stack spacing={0.3}>
-                    <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+                  <Stack spacing={1} alignItems={{ xs: "center", sm: "flex-start" }} sx={{ width: "100%" }}>
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      alignItems="center"
+                      justifyContent={{ xs: "center", sm: "flex-start" }}
+                      useFlexGap
+                      flexWrap="wrap"
+                    >
                       <Typography
                         variant="h4"
                         sx={{
                           fontWeight: 800,
+                          fontSize: { xs: "2rem", sm: "2.125rem" },
+                          textAlign: { xs: "center", sm: "left" },
                           background: "linear-gradient(135deg, #0F2F7A 0%, #2563EB 55%, #6D28D9 100%)",
                           WebkitBackgroundClip: "text",
                           WebkitTextFillColor: "transparent",
@@ -209,7 +235,15 @@ export default function LoginPage() {
                       </Typography>
                       <Chip size="small" label="Secure" color="secondary" />
                     </Stack>
-                    <Typography color="text.secondary">
+                    <Typography
+                      color="text.secondary"
+                      sx={{
+                        textAlign: "center",
+                        lineHeight: 1.5,
+                        maxWidth: 280,
+                        mx: "auto",
+                      }}
+                    >
                       Sign in to manage tailoring orders, saved items, and support.
                     </Typography>
                   </Stack>
@@ -226,33 +260,45 @@ export default function LoginPage() {
                 }}
                 color="primary"
                 fullWidth
+                sx={{
+                  width: "100%",
+                  "& .MuiToggleButton-root": {
+                    flex: 1,
+                  },
+                }}
               >
                 <ToggleButton value="user">Customer</ToggleButton>
                 <ToggleButton value="admin">Admin</ToggleButton>
               </ToggleButtonGroup>
 
               <TextField
+                fullWidth
                 label="Name"
                 placeholder="Your name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 disabled={otpSent || busy}
+                sx={{ mb: 1.5 }}
               />
 
               <TextField
+                fullWidth
                 label="Phone"
                 placeholder="9876543210"
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
                 disabled={otpSent || busy}
+                sx={{ mb: 1.5 }}
               />
 
               {otpSent ? (
                 <TextField
+                  fullWidth
                   label="OTP"
                   placeholder={useMockOtp ? "Enter test OTP" : "Enter 6-digit OTP"}
                   value={otp}
                   onChange={(event) => setOtp(event.target.value)}
+                  sx={{ mb: 1.5 }}
                 />
               ) : null}
 

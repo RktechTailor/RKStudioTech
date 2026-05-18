@@ -13,18 +13,27 @@ const requiredFirebaseEnvKeys = [
   "NEXT_PUBLIC_FIREBASE_APP_ID",
 ] as const;
 
+const legacyFirebaseEnvAliases: Record<string, string> = {
+  NEXT_PUBLIC_FIREBASE_APIKEY: "NEXT_PUBLIC_FIREBASE_API_KEY",
+  NEXT_PUBLIC_FIREBASE_AUTHDOMAIN: "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
+  NEXT_PUBLIC_FIREBASE_PROJECTID: "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+  NEXT_PUBLIC_FIREBASE_STORAGEBUCKET: "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
+  NEXT_PUBLIC_FIREBASE_MESSAGINGSENDERID: "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+  NEXT_PUBLIC_FIREBASE_APPID: "NEXT_PUBLIC_FIREBASE_APP_ID",
+};
+
 const requiredFirebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY?.trim() || "",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN?.trim() || "",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim() || "",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.trim() || "",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID?.trim() || "",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID?.trim() || "",
 };
 
 const firebaseConfig = {
   ...requiredFirebaseConfig,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID?.trim(),
 };
 
 export const firebaseMissingEnvKeys = requiredFirebaseEnvKeys.filter((key) => {
@@ -37,19 +46,133 @@ export const isFirebaseConfigured = firebaseMissingEnvKeys.length === 0;
 let firebaseApp: FirebaseApp | null = null;
 let firebaseAnalytics: Analytics | null = null;
 let firebaseConfigWarningShown = false;
+let firebaseEnvDebugLogged = false;
+
+type FirebaseConfigValidation = {
+  missingKeys: string[];
+  invalidKeys: string[];
+  valid: boolean;
+};
+
+const maskEnvValue = (value: string | undefined): string => {
+  if (!value) {
+    return "";
+  }
+
+  if (value.length <= 8) {
+    return value;
+  }
+
+  return `${value.slice(0, 4)}...${value.slice(-2)}`;
+};
+
+const logFirebaseEnvDebug = () => {
+  if (firebaseEnvDebugLogged || typeof window === "undefined") {
+    return;
+  }
+
+  const debugValues = {
+    NEXT_PUBLIC_FIREBASE_API_KEY: maskEnvValue(process.env.NEXT_PUBLIC_FIREBASE_API_KEY),
+    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "",
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "",
+    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "",
+    NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: maskEnvValue(process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID),
+    NEXT_PUBLIC_FIREBASE_APP_ID: maskEnvValue(process.env.NEXT_PUBLIC_FIREBASE_APP_ID),
+  };
+
+  const legacyKeysFound = Object.keys(legacyFirebaseEnvAliases).filter((legacyKey) => {
+    const value = process.env[legacyKey as keyof NodeJS.ProcessEnv];
+    return Boolean(value && value.trim());
+  });
+
+  console.info("[firebase] env debug", {
+    configured: isFirebaseConfigured,
+    missingKeys: firebaseMissingEnvKeys,
+    values: debugValues,
+  });
+
+  if (legacyKeysFound.length > 0) {
+    console.warn("[firebase] legacy env key names found. Use exact names instead.", {
+      legacyKeysFound,
+      expectedNames: legacyKeysFound.map((legacyKey) => legacyFirebaseEnvAliases[legacyKey]),
+    });
+  }
+
+  firebaseEnvDebugLogged = true;
+};
+
+const validateFirebaseConfig = (): FirebaseConfigValidation => {
+  const missingKeys = Object.entries(requiredFirebaseConfig)
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+
+  const invalidKeys: string[] = [];
+
+  if (requiredFirebaseConfig.authDomain && !requiredFirebaseConfig.authDomain.endsWith("firebaseapp.com")) {
+    invalidKeys.push("authDomain (must end with firebaseapp.com)");
+  }
+
+  if (
+    requiredFirebaseConfig.storageBucket
+    && !(
+      requiredFirebaseConfig.storageBucket.endsWith("appspot.com")
+      || requiredFirebaseConfig.storageBucket.endsWith("firebasestorage.app")
+    )
+  ) {
+    invalidKeys.push("storageBucket (must end with appspot.com or firebasestorage.app)");
+  }
+
+  return {
+    missingKeys,
+    invalidKeys,
+    valid: missingKeys.length === 0 && invalidKeys.length === 0,
+  };
+};
 
 export const getFirebaseApp = (): FirebaseApp | null => {
-  if (!isFirebaseConfigured) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  logFirebaseEnvDebug();
+
+  if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+    console.error("Invalid Firebase config", firebaseConfig);
+  }
+
+  const validation = validateFirebaseConfig();
+
+  if (!validation.valid) {
     if (!firebaseConfigWarningShown) {
-      console.warn("Firebase config missing. Check env variables.");
+      console.error("[firebase] config validation failed", {
+        missingKeys: validation.missingKeys,
+        invalidKeys: validation.invalidKeys,
+        config: firebaseConfig,
+      });
       firebaseConfigWarningShown = true;
     }
 
     return null;
   }
 
+  if (process.env.NODE_ENV !== "production") {
+    console.info("[firebase] config (masked)", {
+      apiKey: maskEnvValue(firebaseConfig.apiKey),
+      authDomain: firebaseConfig.authDomain,
+      projectId: firebaseConfig.projectId,
+      storageBucket: firebaseConfig.storageBucket,
+      messagingSenderId: maskEnvValue(firebaseConfig.messagingSenderId),
+      appId: maskEnvValue(firebaseConfig.appId),
+      measurementId: firebaseConfig.measurementId || "",
+    });
+  }
+
   if (!firebaseApp) {
-    firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    if (!getApps().length) {
+      firebaseApp = initializeApp(firebaseConfig);
+    } else {
+      firebaseApp = getApp();
+    }
   }
 
   return firebaseApp;
