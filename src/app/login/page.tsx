@@ -16,7 +16,7 @@ import {
 import { FirebaseError } from "firebase/app";
 import { ConfirmationResult } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Layout from "@/components/layout/Layout";
 import RKStudioLogo from "@/components/common/RKStudioLogo";
 import { useGlobalLoading } from "@/context/LoadingContext";
@@ -34,6 +34,7 @@ import {
 } from "@/services/authService";
 import { UserRole } from "@/types/auth";
 import { isAdminPhone } from "@/utils/admin";
+import { RK_STUDIO } from "@/utils/constants";
 
 const mapOtpErrorMessage = (error: unknown) => {
   if (!(error instanceof FirebaseError)) {
@@ -93,6 +94,11 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const confirmationResultRef = useRef<ConfirmationResult | null>(null);
+  const whatsappFallbackUrl = useMemo(() => {
+    const message = "Service temporarily unavailable, continue via WhatsApp";
+    const fallbackNumber = RK_STUDIO.whatsappNumber || "918901501572";
+    return `https://wa.me/${fallbackNumber}?text=${encodeURIComponent(message)}`;
+  }, []);
 
   useEffect(() => {
     if (!loading && user) {
@@ -294,7 +300,7 @@ export default function LoginPage() {
 
               {!useMockOtp && firebaseConfigured === false ? (
                 <Alert severity="warning">
-                  Service temporarily unavailable.
+                  Service temporarily unavailable, continue via WhatsApp.
                 </Alert>
               ) : null}
 
@@ -309,14 +315,28 @@ export default function LoginPage() {
               </Typography>
 
               {!otpSent ? (
-                <Button variant="contained" onClick={handleSendOtp} disabled={busy || (!useMockOtp && firebaseConfigured === false)}>
+                <Button variant="contained" onClick={handleSendOtp} disabled={busy}>
                   {busy ? "Sending..." : "Send OTP"}
                 </Button>
               ) : (
-                <Button variant="contained" onClick={handleVerifyOtp} disabled={busy || (!useMockOtp && firebaseConfigured === false)}>
+                <Button variant="contained" onClick={handleVerifyOtp} disabled={busy}>
                   {busy ? "Verifying..." : "Verify OTP"}
                 </Button>
               )}
+
+              {!useMockOtp && firebaseConfigured === false ? (
+                <Button
+                  component="a"
+                  href={whatsappFallbackUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  variant="outlined"
+                  color="success"
+                  sx={{ pointerEvents: "auto" }}
+                >
+                  Continue via WhatsApp
+                </Button>
+              ) : null}
 
               <div id="recaptcha-container" />
             </Stack>

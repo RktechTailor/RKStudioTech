@@ -2,32 +2,18 @@
 
 import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import { Fab } from "@mui/material";
-import { useEffect, useState } from "react";
 import { RK_STUDIO } from "@/utils/constants";
 
 export default function WhatsAppButton() {
-  const [isClient, setIsClient] = useState(false);
-
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  const phone = RK_STUDIO.whatsappNumber;
+  const phone = RK_STUDIO.whatsappNumber || "918901501572";
   const message = "Hi, I want to know about tailoring";
-  const href = phone
-    ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
-    : RK_STUDIO.whatsappChatUrl;
-  const whatsappUrl = href || `https://wa.me/918901501572?text=${encodeURIComponent(message)}`;
+  const whatsappUrl = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 
   const handleClick = () => {
     console.info("[whatsapp] floating button clicked", {
       href: whatsappUrl,
     });
   };
-
-  if (!isClient) {
-    return null;
-  }
 
   return (
     <Fab

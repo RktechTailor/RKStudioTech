@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cert, getApps, initializeApp } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
 import { getProductById } from "@/services/productService";
+import { getFirebaseAdminAuth, getFirebaseAdminDb } from "@/utils/server/firebaseAdmin";
 import {
   calculatePricingBreakdown,
   calculatePricingForLineItems,
@@ -33,24 +32,6 @@ const finalizeSchema = z.object({
   }).optional(),
 });
 
-const getAdminDb = () => {
-  if (!getApps().length) {
-    const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-    const clientEmail = process.env.FIREBASE_ADMIN_EMAIL;
-    const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n");
-
-    if (projectId && clientEmail && privateKey) {
-      initializeApp({
-        credential: cert({ projectId, clientEmail, privateKey }),
-      });
-    } else {
-      initializeApp({ projectId });
-    }
-  }
-
-  return getFirestore();
-};
-
 const verifyRequestUser = async (request: NextRequest) => {
   const authHeader = request.headers.get("Authorization");
 
@@ -77,7 +58,7 @@ const verifyRequestUser = async (request: NextRequest) => {
     };
   }
 
-  const decoded = await getAuth().verifyIdToken(token);
+  const decoded = await getFirebaseAdminAuth().verifyIdToken(token);
 
   return {
     uid: decoded.uid,
@@ -204,7 +185,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getAdminDb();
+    const db = getFirebaseAdminDb();
     const orderRef = db.collection("orders").doc();
     const paymentRef = db.collection("payment_records").doc(input.paymentId);
 

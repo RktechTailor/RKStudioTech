@@ -1,28 +1,11 @@
 import { NextRequest } from "next/server";
-import { cert, getApps, initializeApp } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
 import { AuthUser } from "@/types/auth";
+import { getFirebaseAdminAuth } from "@/utils/server/firebaseAdmin";
 
 /**
  * Bootstraps Firebase Admin Auth once per runtime.
  */
-const getAdminAuth = () => {
-  if (!getApps().length) {
-    const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-    const clientEmail = process.env.FIREBASE_ADMIN_EMAIL;
-    const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n");
-
-    if (projectId && clientEmail && privateKey) {
-      initializeApp({
-        credential: cert({ projectId, clientEmail, privateKey }),
-      });
-    } else {
-      initializeApp({ projectId });
-    }
-  }
-
-  return getAuth();
-};
+const getAdminAuth = () => getFirebaseAdminAuth();
 
 const getBearerToken = (request: NextRequest): string | null => {
   const authHeader = request.headers.get("Authorization");
