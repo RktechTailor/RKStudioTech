@@ -253,6 +253,20 @@ export const setProductActiveState = async (id: string, isActive: boolean) => {
 };
 
 export const getProductById = async (id: string): Promise<CatalogProduct | null> => {
+  if (typeof window === "undefined") {
+    try {
+      const { getFirebaseAdminDb } = await import("@/utils/server/firebaseAdmin");
+      const adminDb = getFirebaseAdminDb();
+      const productSnap = await adminDb.collection("products").doc(id).get();
+
+      if (productSnap.exists) {
+        return toProduct(productSnap.id, productSnap.data() as Partial<CatalogProduct>);
+      }
+    } catch (error) {
+      console.warn("Server product lookup failed, falling back to client catalog lookup:", error);
+    }
+  }
+
   const db = getFirebaseDb();
 
   if (!db) {
