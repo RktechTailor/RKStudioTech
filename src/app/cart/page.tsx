@@ -62,7 +62,7 @@ export default function CartPage() {
       service: item.category === "dupatta" ? "dupatta" : "fabric",
       userId: user?.uid || "guest-user",
       customerName: user?.displayName || "Customer",
-      customerPhone: user?.phoneNumber || "Not provided",
+      customerPhone: user?.phoneNumber || "",
       orderDetails: {
         productId: item.productId,
         cart_item_id: item.id,
@@ -117,7 +117,7 @@ export default function CartPage() {
       service: allSuitItems ? "dupatta" : "fabric",
       userId: user?.uid || "guest-user",
       customerName: user?.displayName || "Customer",
-      customerPhone: user?.phoneNumber || "Not provided",
+      customerPhone: user?.phoneNumber || "",
       orderDetails: {
         checkout_mode: "cart_all",
         cart_item_ids: items.map((item) => item.id),

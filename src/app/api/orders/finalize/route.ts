@@ -273,8 +273,8 @@ export async function POST(request: NextRequest) {
       const total = toPositiveNumber(raw.total ?? raw.amountPaid);
       const phone = toNonEmptyString(raw.phone || raw.customerPhone);
 
-      if (!productId || !total) {
-        return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+      if (!productId || !total || !phone) {
+        return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
       }
 
       const safeOrder = await createSafeOrder(requester.uid, {

@@ -372,13 +372,20 @@ export default function CheckoutPage() {
       : pricingBreakdown.finalPayable;
   }, [pendingOrder, pricingBreakdown]);
 
-  const getAuthContext = async (): Promise<{ headers: Record<string, string>; uid: string }> => {
+  const getAuthContext = async (): Promise<{ headers: Record<string, string>; uid: string; phone: string }> => {
     if (user?.provider === "mock") {
+      const mockPhone = (user.phoneNumber || "").trim();
+
+      if (!mockPhone) {
+        throw new Error("Phone number missing from user");
+      }
+
       return {
         headers: {
           Authorization: `Bearer mock:${user.uid}:${user.role || "user"}`,
         },
         uid: user.uid,
+        phone: mockPhone,
       };
     }
 
@@ -390,9 +397,14 @@ export default function CheckoutPage() {
     }
 
     const tokenValue = await currentUser.getIdToken();
+    const phoneValue = (currentUser.phoneNumber || "").trim();
 
     if (!tokenValue) {
       throw new Error("User token unavailable");
+    }
+
+    if (!phoneValue) {
+      throw new Error("Phone number missing from user");
     }
 
     return {
@@ -400,6 +412,7 @@ export default function CheckoutPage() {
         Authorization: `Bearer ${tokenValue}`,
       },
       uid: currentUser.uid,
+      phone: phoneValue,
     };
   };
 
@@ -422,12 +435,6 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (!pendingOrder.customerPhone?.trim()) {
-      setError("Phone number is required.");
-      setOrderFailed(true);
-      return;
-    }
-
     if (!pendingOrder.customerName?.trim()) {
       setError("Customer name is required.");
       setOrderFailed(true);
@@ -443,11 +450,13 @@ export default function CheckoutPage() {
     try {
       setSubmitting(true);
       submitLockRef.current = true;
+      const authContext = await getAuthContext();
+      const resolvedPhone = authContext.phone;
 
       const enrichedOrderDetails: OrderDetails = {
         ...(pendingOrder.orderDetails as OrderDetails),
         customer_name: pendingOrder.customerName,
-        customer_phone: pendingOrder.customerPhone,
+        customer_phone: resolvedPhone,
         customer_address: profile?.address || "",
         customer_measurements: profile?.measurements || {},
         pricing_type: pricingBreakdown.pricingType,
@@ -494,7 +503,6 @@ export default function CheckoutPage() {
       }
 
       const paymentId = `order-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const authContext = await getAuthContext();
 
       const response = await fetch("/api/orders/finalize", {
         method: "POST",
@@ -505,8 +513,8 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           userId: authContext.uid,
           service: pendingOrder.service,
-          phone: pendingOrder.customerPhone,
-          customerPhone: pendingOrder.customerPhone,
+          phone: resolvedPhone,
+          customerPhone: resolvedPhone,
           items: lineItems,
           productId: product?.id,
           total: pricingBreakdown.finalPayable,
