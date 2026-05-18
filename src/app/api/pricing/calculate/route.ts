@@ -205,6 +205,7 @@ export async function POST(request: NextRequest) {
       quantityOrMeter: toFiniteNumber(body.quantityOrMeter, 1),
       pickupCharge: toFiniteNumber(body.pickupCharge, 0),
       dropCharge: toFiniteNumber(body.dropCharge, 0),
+      fallbackPricing: body.fallbackPricing,
       lineItems: Array.isArray(body.lineItems) ? body.lineItems : undefined,
       paymentType: body.paymentType,
     };
