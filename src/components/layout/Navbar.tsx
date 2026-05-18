@@ -329,6 +329,13 @@ export default function Navbar() {
         anchor="right"
         open={open}
         onClose={() => setOpen(false)}
+        ModalProps={{
+          BackdropProps: {
+            sx: {
+              pointerEvents: "none",
+            },
+          },
+        }}
         PaperProps={{
           sx: {
             width: 300,
