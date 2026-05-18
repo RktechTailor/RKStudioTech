@@ -133,6 +133,58 @@ const resolvePricing = async (input: z.infer<typeof finalizeSchema>) => {
   throw new Error("Missing productId for pricing validation");
 };
 
+const resolveMockFallbackPricing = (input: z.infer<typeof finalizeSchema>) => {
+  const details = input.orderDetails as Record<string, unknown>;
+  const pricingType = details.pricing_type === "meter" || details.pricing_type === "piece"
+    ? details.pricing_type
+    : input.pricingInput?.pricingType || "piece";
+  const quantityOrMeter =
+    toPositiveNumber(details.quantity_or_meter)
+    || input.pricingInput?.quantityOrMeter
+    || 1;
+  const finalPayable =
+    toPositiveNumber(details.final_payable)
+    || toPositiveNumber(details.final_price)
+    || toPositiveNumber(details.total_price)
+    || input.amountPaid;
+  const finalPrice =
+    toPositiveNumber(details.final_price)
+    || toPositiveNumber(details.total_price)
+    || finalPayable;
+  const marketPrice =
+    toPositiveNumber(details.market_price)
+    || finalPrice;
+  const totalPrice =
+    toPositiveNumber(details.total_price)
+    || finalPrice;
+  const discountPercentage = Number(details.discount_percentage);
+  const discountAmount = Number(details.discount_amount);
+  const pickupCharge = Number(details.pickup_charge);
+  const dropCharge = Number(details.drop_charge);
+  const pickupDropCharge = Number(details.pickup_drop_charge);
+  const advanceAmount = Number(details.advance_amount);
+  const remainingAmount = Number(details.remaining_amount);
+
+  return {
+    marketPrice,
+    pricingType,
+    pricePerUnit: finalPrice,
+    quantityOrMeter,
+    totalPrice,
+    discountPercentage: Number.isFinite(discountPercentage) ? discountPercentage : 0,
+    discountAmount: Number.isFinite(discountAmount) ? discountAmount : 0,
+    finalPrice,
+    pickupCharge: Number.isFinite(pickupCharge) ? pickupCharge : 0,
+    dropCharge: Number.isFinite(dropCharge) ? dropCharge : 0,
+    pickupDropCharge: Number.isFinite(pickupDropCharge) ? pickupDropCharge : 0,
+    finalPayable,
+    advancePercentage: 20,
+    advanceAmount: Number.isFinite(advanceAmount) ? advanceAmount : Math.round(finalPayable * 0.2),
+    remainingAmount: Number.isFinite(remainingAmount) ? remainingAmount : finalPayable - Math.round(finalPayable * 0.2),
+    savingsText: `You saved INR ${Number.isFinite(discountAmount) ? discountAmount : 0}`,
+  };
+};
+
 const toNonEmptyString = (value: unknown): string => {
   return typeof value === "string" ? value.trim() : "";
 };
@@ -321,7 +373,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Order must include at least one product item." }, { status: 400 });
     }
 
-    const pricing = await resolvePricing(input);
+    let pricing;
+
+    try {
+      pricing = await resolvePricing(input);
+    } catch (pricingError) {
+      if (
+        authUser.provider === "mock"
+        && pricingError instanceof Error
+        && pricingError.message.includes("Product not found")
+      ) {
+        pricing = resolveMockFallbackPricing(input);
+      } else {
+        throw pricingError;
+      }
+    }
 
     if (pricing.finalPrice <= 0 || pricing.finalPayable <= 0) {
       return NextResponse.json({ error: "Invalid order amount." }, { status: 400 });
