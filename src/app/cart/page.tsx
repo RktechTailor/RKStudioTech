@@ -212,7 +212,15 @@ export default function CartPage() {
         </Stack>
 
         {items.length === 0 ? (
-          <Alert severity="info">Your cart is empty. Add products from the fabric page.</Alert>
+          <Stack spacing={2} alignItems="center" sx={{ py: 6 }}>
+            <ShoppingBagOutlinedIcon sx={{ fontSize: 56, color: "text.disabled" }} />
+            <Typography variant="body1" color="text.secondary" textAlign="center">
+              Your cart is empty. Browse our fabric collection to get started.
+            </Typography>
+            <Button component={Link} href="/fabric" variant="contained" sx={{ fontWeight: 700, borderRadius: 2 }}>
+              Browse Fabrics
+            </Button>
+          </Stack>
         ) : null}
 
         {cleanupNotice ? <Alert severity="warning">{cleanupNotice}</Alert> : null}

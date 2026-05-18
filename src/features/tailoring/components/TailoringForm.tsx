@@ -200,6 +200,7 @@ export default function TailoringForm() {
   const { user } = useAuth();
   const { trackAsync } = useGlobalLoading();
   const { products, loading: productsLoading, error: productsError } = useProducts({ category: "fabric" });
+  const [productsTimedOut, setProductsTimedOut] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [formData, setFormData] = useState<TailoringFormData>(initialData);
   const [pickerFilters, setPickerFilters] = useState<TailoringPickerFilters>({
@@ -220,6 +221,19 @@ export default function TailoringForm() {
   const [hasSavedSizeProfile, setHasSavedSizeProfile] = useState(false);
   const [sizeProfileFeedback, setSizeProfileFeedback] = useState("");
   const [isAutoSuggestedMeasurement, setIsAutoSuggestedMeasurement] = useState(false);
+
+  useEffect(() => {
+    if (!productsLoading) {
+      setProductsTimedOut(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setProductsTimedOut(true);
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [productsLoading]);
 
   useEffect(() => {
     if (error) {
@@ -820,6 +834,55 @@ export default function TailoringForm() {
     setIsAutoSuggestedMeasurement(false);
     setSizeProfileFeedback("Saved size profile cleared.");
   };
+
+  if (productsLoading && productsTimedOut) {
+    return (
+      <Card>
+        <CardContent>
+          <Stack spacing={2} alignItems="center" py={4}>
+            <Typography color="text.secondary">Unable to load form. Please check your connection.</Typography>
+            <Button
+              variant="outlined"
+              onClick={() => window.location.reload()}
+            >
+              Retry
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (productsLoading) {
+    return (
+      <Card>
+        <CardContent>
+          <Stack alignItems="center" py={6}>
+            <CircularProgress />
+          </Stack>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (productsError && products.length === 0) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[TailoringForm] products load error:", productsError);
+    }
+
+    return (
+      <Card>
+        <CardContent>
+          <Stack spacing={2} alignItems="center" py={4}>
+            <Typography color="error.main">{productsError}</Typography>
+            <Button variant="outlined" onClick={() => window.location.reload()}>
+              Retry
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>

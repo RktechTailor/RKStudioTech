@@ -45,6 +45,7 @@ const CUSTOM_SIZE_VALUE = "custom";
 export default function TailoringOrderPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
+  const [authTimedOut, setAuthTimedOut] = useState(false);
 
   const [tailors, setTailors] = useState<TailorCapacity[]>([]);
   const [selectedTailorId, setSelectedTailorId] = useState<string>("");
@@ -115,6 +116,14 @@ export default function TailoringOrderPage() {
       Authorization: `Bearer ${token}`,
     };
   }, [user]);
+
+  useEffect(() => {
+    if (!loading) return;
+    const timer = window.setTimeout(() => {
+      setAuthTimedOut(true);
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [loading]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -404,11 +413,22 @@ export default function TailoringOrderPage() {
     }
   };
 
-  if (loading) {
+  if (loading && !authTimedOut) {
     return (
       <Layout>
         <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
           <CircularProgress />
+        </Box>
+      </Layout>
+    );
+  }
+
+  if (authTimedOut && loading) {
+    return (
+      <Layout>
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, py: 8 }}>
+          <Typography color="text.secondary">Unable to load form. Please check your connection.</Typography>
+          <Button variant="outlined" onClick={() => window.location.reload()}>Retry</Button>
         </Box>
       </Layout>
     );

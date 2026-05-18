@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import {
   fetchAllOrders,
+  fetchOrdersByPhone,
+  fetchUserOrders,
   subscribeToAllOrders,
   subscribeToOrdersByPhone,
   subscribeToUserOrders,
@@ -58,8 +60,15 @@ export const useOrders = ({ mode, userId, phone, mockMode = false }: UseOrdersPa
               setLoading(false);
             },
             () => {
-              setError("Could not fetch orders.");
-              setLoading(false);
+              if (process.env.NODE_ENV !== "production") {
+                console.warn("[Firestore] subscribeToUserOrders failed — falling back to getDocs");
+              }
+              void (async () => {
+                const fallback = await fetchUserOrders(userId as string);
+                setOrders(fallback);
+                setError(fallback.length === 0 ? "Could not fetch orders." : "");
+                setLoading(false);
+              })();
             },
           )
         : mode === "phone"
@@ -71,8 +80,15 @@ export const useOrders = ({ mode, userId, phone, mockMode = false }: UseOrdersPa
                 setLoading(false);
               },
               () => {
-                setError("Could not fetch orders.");
-                setLoading(false);
+                if (process.env.NODE_ENV !== "production") {
+                  console.warn("[Firestore] subscribeToOrdersByPhone failed — falling back to getDocs");
+                }
+                void (async () => {
+                  const fallback = await fetchOrdersByPhone(phone as string);
+                  setOrders(fallback);
+                  setError(fallback.length === 0 ? "Could not fetch orders." : "");
+                  setLoading(false);
+                })();
               },
             )
         : subscribeToAllOrders(

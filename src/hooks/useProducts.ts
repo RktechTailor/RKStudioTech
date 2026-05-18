@@ -93,7 +93,10 @@ export const useProducts = ({ category, paginated = false, pageSize = 24 }: UseP
             setProducts(nextProducts);
             setLoading(false);
           },
-          () => {
+          (err) => {
+            if (process.env.NODE_ENV !== "production") {
+              console.warn("[Firestore] subscribeToProductsByCategory failed — getDocs fallback in service:", err);
+            }
             setError("Could not load products.");
             setLoading(false);
           },
@@ -103,7 +106,10 @@ export const useProducts = ({ category, paginated = false, pageSize = 24 }: UseP
             setProducts(nextProducts);
             setLoading(false);
           },
-          () => {
+          (err) => {
+            if (process.env.NODE_ENV !== "production") {
+              console.warn("[Firestore] subscribeToAllProducts failed — getDocs fallback in service:", err);
+            }
             setError("Could not load products.");
             setLoading(false);
           },

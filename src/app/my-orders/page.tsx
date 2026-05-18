@@ -173,7 +173,7 @@ export default function MyOrdersPage() {
   }, [authLoading, authUser?.uid, refreshKey]);
 
   const latestOrder = orders[0];
-  const supportPhone = formatPhone("9198901501572");
+  const supportPhone = formatPhone("918901501572");
   const readyOrderHelpUrl = buildWhatsAppChatUrl(supportPhone, "My order is ready. Please share delivery details");
   const genericHelpUrl = buildWhatsAppChatUrl(supportPhone, "Hi, I need help with my order");
 
@@ -244,7 +244,7 @@ export default function MyOrdersPage() {
 
                         return (
                           <TableRow key={order.id}>
-                            <TableCell>{(order.orderCode || order.id).slice(0, 16)}</TableCell>
+                            <TableCell sx={{ fontFamily: "monospace", fontWeight: 600 }}>{order.orderCode || order.id}</TableCell>
                             <TableCell sx={{ textTransform: "capitalize" }}>{String(productLabel || "-")}</TableCell>
                             <TableCell>INR {Number(total || 0)}</TableCell>
                             <TableCell>

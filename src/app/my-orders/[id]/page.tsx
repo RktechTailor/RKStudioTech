@@ -2,7 +2,6 @@
 
 import {
   Alert,
-  Box,
   Button,
   Card,
   CardContent,
@@ -47,9 +46,10 @@ export default function MyOrderDetailsPage() {
   const { orders, loading, error } = useOrders({ mode: "user", userId: user?.uid, mockMode: user?.provider === "mock" });
 
   const order = orders.find((item) => item.id === orderId);
-  const supportPhone = formatPhone("9198901501572");
+  const supportPhone = formatPhone("918901501572");
+  const displayOrderId = order ? (order.orderCode || order.id) : "";
   const supportUrl = order
-    ? buildWhatsAppChatUrl(supportPhone, `I need help with order ID ${order.id}`)
+    ? buildWhatsAppChatUrl(supportPhone, `I need help with order ${displayOrderId}`)
     : "";
   const measurements = order?.orderDetails?.measurements;
   const fabricDetails = order?.orderDetails?.fabricDetails;
@@ -84,7 +84,12 @@ export default function MyOrderDetailsPage() {
           <Card>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">Order ID: {order.id}</Typography>
+                <Typography variant="h6">
+                  Order ID:{" "}
+                  <Typography component="span" variant="h6" sx={{ fontFamily: "monospace", fontWeight: 700 }}>
+                    {order.orderCode || order.id}
+                  </Typography>
+                </Typography>
                 <Typography color="text.secondary">Date: {formatDate(order.createdAt)}</Typography>
 
                 <Divider />
@@ -101,7 +106,7 @@ export default function MyOrderDetailsPage() {
                 </Typography>
                 {measurements && typeof measurements === "object" ? (
                   <Typography variant="body2" color="text.secondary">
-                    Measurements: {JSON.stringify(measurements)}
+                    Measurements: {Object.entries(measurements as Record<string, unknown>).map(([k, v]) => `${k}: ${v}`).join(", ")}
                   </Typography>
                 ) : null}
                 {fabricDetails && typeof fabricDetails === "object" ? (
@@ -113,15 +118,6 @@ export default function MyOrderDetailsPage() {
                 <Divider />
 
                 <OrderTimeline status={order.status} />
-
-                <Divider />
-
-                <Typography variant="subtitle1">Full Breakdown</Typography>
-                <Box sx={{ border: "1px solid #E2E8F0", borderRadius: 2, p: 2 }}>
-                  <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "inherit" }}>
-                    {JSON.stringify(order.orderDetails || {}, null, 2)}
-                  </pre>
-                </Box>
 
                 <a
                   href={supportUrl || undefined}

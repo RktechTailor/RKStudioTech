@@ -303,11 +303,123 @@ export const fetchAllOrders = async (): Promise<UserOrder[]> => {
       return bMillis - aMillis;
     });
 
-    console.log("Orders fetched:", orders.length);
-
     return orders;
   } catch (err) {
-    console.error("Orders fetch error:", err);
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[Firestore] fetchAllOrders error:", err);
+    }
+    return [];
+  }
+};
+
+export const fetchUserOrders = async (userId: string): Promise<UserOrder[]> => {
+  const db = getFirebaseDb();
+
+  if (!db || !userId) {
+    return [];
+  }
+
+  try {
+    const snapshot = await getDocs(
+      query(collection(db, "orders"), where("userId", "==", userId), orderBy("createdAt", "desc")),
+    );
+
+    return snapshot.docs.map((orderDoc) => {
+      const data = orderDoc.data() as Omit<UserOrder, "id">;
+      return {
+        id: orderDoc.id,
+        orderCode: data.orderCode || null,
+        userId: data.userId,
+        service: data.service,
+        productId: data.productId || null,
+        orderDetails: data.orderDetails || {},
+        paymentStatus: (data.paymentStatus || "pending") as PaymentStatus,
+        paymentType: (data.paymentType || null) as PaymentType | null,
+        amountPaid: typeof data.amountPaid === "number" ? data.amountPaid : null,
+        advanceAmount: typeof data.advanceAmount === "number" ? data.advanceAmount : null,
+        remainingAmount: typeof data.remainingAmount === "number" ? data.remainingAmount : null,
+        finalPrice: typeof data.finalPrice === "number" ? data.finalPrice : null,
+        finalPayable: typeof data.finalPayable === "number" ? data.finalPayable : null,
+        totalPrice: typeof data.totalPrice === "number" ? data.totalPrice : null,
+        marketPrice: typeof data.marketPrice === "number" ? data.marketPrice : null,
+        discountPercentage: typeof data.discountPercentage === "number" ? data.discountPercentage : null,
+        discountAmount: typeof data.discountAmount === "number" ? data.discountAmount : null,
+        pricingType: (data.pricingType || null) as PricingType | null,
+        quantityOrMeter: typeof data.quantityOrMeter === "number" ? data.quantityOrMeter : null,
+        paymentId: data.paymentId || null,
+        status: (data.status || "pending") as OrderStatus,
+        approvalStatus: (data.approvalStatus || "pending") as OrderApprovalStatus,
+        phone: data.phone || null,
+        items: Array.isArray(data.items) ? data.items as string[] : [],
+        total: typeof data.total === "number" ? data.total : null,
+        statusHistory: (data.statusHistory || []) as OrderHistoryItem[],
+        assignedTo: data.assignedTo || null,
+        createdAt: data.createdAt || null,
+      };
+    });
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[Firestore] fetchUserOrders fallback error:", err);
+    }
+    return [];
+  }
+};
+
+export const fetchOrdersByPhone = async (phone: string): Promise<UserOrder[]> => {
+  const db = getFirebaseDb();
+  const normalizedPhone = normalizePhone(phone).slice(-10);
+
+  if (!db || !normalizedPhone) {
+    return [];
+  }
+
+  try {
+    const snapshot = await getDocs(
+      query(
+        collection(db, "orders"),
+        where("normalizedPhone", "==", normalizedPhone),
+        orderBy("createdAt", "desc"),
+      ),
+    );
+
+    return snapshot.docs.map((orderDoc) => {
+      const data = orderDoc.data() as Omit<UserOrder, "id">;
+      return {
+        id: orderDoc.id,
+        orderCode: data.orderCode || null,
+        userId: data.userId,
+        service: data.service,
+        productId: data.productId || null,
+        orderDetails: data.orderDetails || {},
+        paymentStatus: (data.paymentStatus || "pending") as PaymentStatus,
+        paymentType: (data.paymentType || null) as PaymentType | null,
+        amountPaid: typeof data.amountPaid === "number" ? data.amountPaid : null,
+        advanceAmount: typeof data.advanceAmount === "number" ? data.advanceAmount : null,
+        remainingAmount: typeof data.remainingAmount === "number" ? data.remainingAmount : null,
+        finalPrice: typeof data.finalPrice === "number" ? data.finalPrice : null,
+        finalPayable: typeof data.finalPayable === "number" ? data.finalPayable : null,
+        totalPrice: typeof data.totalPrice === "number" ? data.totalPrice : null,
+        marketPrice: typeof data.marketPrice === "number" ? data.marketPrice : null,
+        discountPercentage: typeof data.discountPercentage === "number" ? data.discountPercentage : null,
+        discountAmount: typeof data.discountAmount === "number" ? data.discountAmount : null,
+        pricingType: (data.pricingType || null) as PricingType | null,
+        quantityOrMeter: typeof data.quantityOrMeter === "number" ? data.quantityOrMeter : null,
+        paymentId: data.paymentId || null,
+        status: (data.status || "pending") as OrderStatus,
+        approvalStatus: (data.approvalStatus || "pending") as OrderApprovalStatus,
+        phone: data.phone || null,
+        normalizedPhone: data.normalizedPhone || null,
+        items: Array.isArray(data.items) ? data.items as string[] : [],
+        total: typeof data.total === "number" ? data.total : null,
+        statusHistory: (data.statusHistory || []) as OrderHistoryItem[],
+        assignedTo: data.assignedTo || null,
+        createdAt: data.createdAt || null,
+      };
+    });
+  } catch (err) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[Firestore] fetchOrdersByPhone fallback error:", err);
+    }
     return [];
   }
 };
@@ -387,7 +499,9 @@ export const updateOrderStatus = async (
     }),
   });
 
-  console.log("STATUS UPDATED:", status);
+  if (process.env.NODE_ENV !== "production") {
+    console.info("[Firestore] STATUS UPDATED:", status);
+  }
 };
 
 export const updateOrderApprovalStatus = async (

@@ -342,7 +342,19 @@ export const subscribeToAllProducts = (
         return;
       }
 
-      onError?.(error as Error);
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[Firestore] subscribeToAllProducts listener error — falling back to getDocs:", error);
+      }
+
+      void getDocs(query(collection(db, "products"), orderBy("createdAt", "desc")))
+        .then((snap) => {
+          const products = snap.docs
+            .map((d) => toProduct(d.id, d.data() as Partial<CatalogProduct>))
+            .filter((p) => p.isActive !== false)
+            .sort(byCreatedAtDesc);
+          onProducts(products.length ? products : []);
+        })
+        .catch(() => onError?.(error as Error));
     },
   );
 };
@@ -353,8 +365,6 @@ export const subscribeToProductsByCategory = (
   onError?: (error: Error) => void,
 ) => {
   const db = getFirebaseDb();
-
-  console.log("Fetching products for category:", category);
 
   if (!db) {
     onProducts(allowMockCatalogFallback ? dummyCatalogProducts.filter((product) => product.category === category) : []);
@@ -386,7 +396,19 @@ export const subscribeToProductsByCategory = (
         return;
       }
 
-      onError?.(error as Error);
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[Firestore] subscribeToProductsByCategory listener error — falling back to getDocs:", error);
+      }
+
+      void getDocs(query(collection(db, "products"), limit(200)))
+        .then((snap) => {
+          const products = snap.docs
+            .map((d) => toProduct(d.id, d.data() as Partial<CatalogProduct>))
+            .filter((p) => p.category === category && p.isActive !== false)
+            .sort(byCreatedAtDesc);
+          onProducts(products.length ? products : []);
+        })
+        .catch(() => onError?.(error as Error));
     },
   );
 };
@@ -397,8 +419,6 @@ export const getProductsByCategoryPage = async (
   cursor: ProductPageCursor = null,
 ): Promise<ProductPageResult> => {
   const db = getFirebaseDb();
-
-  console.log("Fetching products for category:", category);
 
   if (!db) {
     const all = dummyCatalogProducts.filter((product) => product.category === category);

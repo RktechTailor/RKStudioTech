@@ -195,7 +195,7 @@ export default function CheckoutPage() {
   const [profile, setProfile] = useState<AppUser | null>(null);
   const [orderFailed, setOrderFailed] = useState(false);
   const submitLockRef = useRef(false);
-  const supportPhone = formatPhone("9198901501572");
+  const supportPhone = formatPhone("918901501572");
   const supportUrl = buildWhatsAppChatUrl(supportPhone, "Hi, I need help with my order");
 
   useEffect(() => {
