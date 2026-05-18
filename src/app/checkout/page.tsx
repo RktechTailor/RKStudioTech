@@ -128,6 +128,30 @@ const resolveCheckoutLineItems = (
   return lineItems.length ? lineItems : pendingOrder.pricingInput?.lineItems;
 };
 
+const resolveCheckoutLineItemsWithFallbackPricing = (
+  pendingOrder: NonNullable<ReturnType<typeof readPendingPaymentOrder>>,
+  cartItems: ReturnType<typeof readFabricCart>,
+) => {
+  const lineItems = resolveCheckoutLineItems(pendingOrder, cartItems);
+
+  return lineItems?.map((line) => {
+    const matchedCartItem = cartItems.find((cartItem) => cartItem.productId === line.productId);
+
+    return {
+      ...line,
+      fallbackPricing: matchedCartItem
+        ? {
+          marketPrice: matchedCartItem.market_price,
+          pricePerUnit: matchedCartItem.price_per_unit,
+          pricingType: matchedCartItem.pricing_type,
+          discountPercentage: matchedCartItem.discount_percentage,
+          advancePercentage: matchedCartItem.advance_percentage,
+        }
+        : undefined,
+    };
+  });
+};
+
 const toSafePricingBreakdown = (
   pendingOrder: NonNullable<ReturnType<typeof readPendingPaymentOrder>>,
   total: number,
@@ -247,7 +271,25 @@ export default function CheckoutPage() {
           throw new Error("Product ID missing in checkout");
         }
 
-        const lineItems = resolveCheckoutLineItems(pendingOrder, cartItems);
+        const lineItems = resolveCheckoutLineItemsWithFallbackPricing(pendingOrder, cartItems);
+
+        const fallbackPricing = selectedProduct
+          ? {
+            marketPrice: selectedProduct.market_price,
+            pricePerUnit: selectedProduct.price_per_unit,
+            pricingType: selectedProduct.pricing_type,
+            discountPercentage: selectedProduct.discount_percentage,
+            advancePercentage: selectedProduct.advance_percentage,
+          }
+          : pendingOrder.pricingBreakdown
+            ? {
+              marketPrice: pendingOrder.pricingBreakdown.marketPrice,
+              pricePerUnit: pendingOrder.pricingBreakdown.pricePerUnit,
+              pricingType: pendingOrder.pricingBreakdown.pricingType,
+              discountPercentage: pendingOrder.pricingBreakdown.discountPercentage,
+              advancePercentage: pendingOrder.pricingBreakdown.advancePercentage,
+            }
+            : undefined;
 
         const response = await fetch("/api/pricing/calculate", {
           method: "POST",
@@ -261,6 +303,7 @@ export default function CheckoutPage() {
             quantityOrMeter: selectedProduct?.selected_quantity ?? pendingOrder.pricingInput?.quantityOrMeter,
             pickupCharge: pendingOrder.pricingInput?.pickupCharge ?? pickupCharge,
             dropCharge: pendingOrder.pricingInput?.dropCharge ?? dropCharge,
+            fallbackPricing,
             lineItems,
           }),
         });

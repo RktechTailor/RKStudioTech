@@ -14,9 +14,23 @@ type PricingRequestInput = {
   quantityOrMeter?: number;
   pickupCharge?: number;
   dropCharge?: number;
+  fallbackPricing?: {
+    marketPrice?: number;
+    pricePerUnit?: number;
+    pricingType?: "meter" | "piece";
+    discountPercentage?: number;
+    advancePercentage?: number;
+  };
   lineItems?: Array<{
     productId: string;
     quantityOrMeter: number;
+    fallbackPricing?: {
+      marketPrice?: number;
+      pricePerUnit?: number;
+      pricingType?: "meter" | "piece";
+      discountPercentage?: number;
+      advancePercentage?: number;
+    };
   }>;
   paymentType?: "advance" | "full";
 };
@@ -78,6 +92,37 @@ const buildFallbackResponse = (
     fallback: true,
     reason,
     pricingBreakdown,
+  };
+};
+
+const toFallbackPricingInput = (
+  fallbackPricing: PricingRequestInput["fallbackPricing"] | undefined,
+  quantityOrMeter: number,
+): PricingCalculationInput | null => {
+  if (!fallbackPricing) {
+    return null;
+  }
+
+  const pricePerUnit = Number(fallbackPricing.pricePerUnit);
+  const marketPrice = Number(fallbackPricing.marketPrice);
+
+  if (!Number.isFinite(pricePerUnit) || pricePerUnit <= 0) {
+    return null;
+  }
+
+  return {
+    marketPrice: Number.isFinite(marketPrice) && marketPrice > 0 ? marketPrice : pricePerUnit,
+    pricingType: fallbackPricing.pricingType === "meter" || fallbackPricing.pricingType === "piece"
+      ? fallbackPricing.pricingType
+      : "piece",
+    pricePerUnit,
+    quantityOrMeter: Number.isFinite(quantityOrMeter) && quantityOrMeter > 0 ? quantityOrMeter : 1,
+    discountPercentage: Number.isFinite(Number(fallbackPricing.discountPercentage))
+      ? Number(fallbackPricing.discountPercentage)
+      : 0,
+    advancePercentage: Number.isFinite(Number(fallbackPricing.advancePercentage))
+      ? Number(fallbackPricing.advancePercentage)
+      : 20,
   };
 };
 
@@ -174,8 +219,15 @@ export async function POST(request: NextRequest) {
         console.log("DOC EXISTS:", Boolean(product));
 
         if (!product) {
-          console.error("PRODUCT NOT FOUND:", lineProductId);
-          return NextResponse.json(buildFallbackResponse("product_not_found"), { status: 200 });
+          const fallbackInput = toFallbackPricingInput(line.fallbackPricing, line.quantityOrMeter);
+
+          if (!fallbackInput) {
+            console.error("PRODUCT NOT FOUND:", lineProductId);
+            return NextResponse.json(buildFallbackResponse("product_not_found"), { status: 200 });
+          }
+
+          linePricingInputs.push(fallbackInput);
+          continue;
         }
 
         console.log("PRODUCT DATA:", product);
@@ -228,8 +280,36 @@ export async function POST(request: NextRequest) {
     console.log("DOC EXISTS:", Boolean(product));
 
     if (!product) {
-      console.error("PRODUCT NOT FOUND:", productId);
-      return NextResponse.json(buildFallbackResponse("product_not_found"), { status: 200 });
+      const fallbackInput = toFallbackPricingInput(input.fallbackPricing, input.quantityOrMeter ?? 1);
+
+      if (!fallbackInput) {
+        console.error("PRODUCT NOT FOUND:", productId);
+        return NextResponse.json(buildFallbackResponse("product_not_found"), { status: 200 });
+      }
+
+      const pricingBreakdown = calculatePricingBreakdown({
+        ...fallbackInput,
+        pickupCharge: input.pickupCharge,
+        dropCharge: input.dropCharge,
+      });
+      const total = input.paymentType === "advance"
+        ? pricingBreakdown.advanceAmount
+        : pricingBreakdown.finalPayable;
+
+      return NextResponse.json({
+        success: true,
+        total,
+        breakdown: {
+          base: fallbackInput.pricePerUnit,
+          basePrice: pricingBreakdown.finalPrice,
+          pickupCharge: pricingBreakdown.pickupCharge,
+          dropCharge: pricingBreakdown.dropCharge,
+          finalPayable: pricingBreakdown.finalPayable,
+        },
+        fallback: true,
+        reason: "product_not_found",
+        pricingBreakdown,
+      } satisfies PricingApiResponse, { status: 200 });
     }
 
     console.log("PRODUCT DATA:", product);
