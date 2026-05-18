@@ -13,15 +13,6 @@ const legacyFirebaseEnvAliases: Record<string, string> = {
   NEXT_PUBLIC_FIREBASE_APPID: "NEXT_PUBLIC_FIREBASE_APP_ID",
 };
 
-const requiredFirebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY?.trim() || "",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN?.trim() || "",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim() || "",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.trim() || "",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID?.trim() || "",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID?.trim() || "",
-};
-
 const firebaseConfigKeyToEnvName = {
   apiKey: "NEXT_PUBLIC_FIREBASE_API_KEY",
   authDomain: "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
@@ -30,17 +21,6 @@ const firebaseConfigKeyToEnvName = {
   messagingSenderId: "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
   appId: "NEXT_PUBLIC_FIREBASE_APP_ID",
 } as const;
-
-const firebaseConfig = {
-  ...requiredFirebaseConfig,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID?.trim(),
-};
-
-export const firebaseMissingEnvKeys = Object.entries(requiredFirebaseConfig)
-  .filter(([, value]) => !value)
-  .map(([key]) => firebaseConfigKeyToEnvName[key as keyof typeof firebaseConfigKeyToEnvName]);
-
-export const isFirebaseConfigured = firebaseMissingEnvKeys.length === 0;
 
 let firebaseApp: FirebaseApp | null = null;
 let firebaseAnalytics: Analytics | null = null;
@@ -51,6 +31,59 @@ type FirebaseConfigValidation = {
   missingKeys: string[];
   invalidKeys: string[];
   valid: boolean;
+};
+
+type FirebaseRuntimeConfig = {
+  requiredConfig: {
+    apiKey: string;
+    authDomain: string;
+    projectId: string;
+    storageBucket: string;
+    messagingSenderId: string;
+    appId: string;
+  };
+  config: {
+    apiKey: string;
+    authDomain: string;
+    projectId: string;
+    storageBucket: string;
+    messagingSenderId: string;
+    appId: string;
+    measurementId?: string;
+  };
+  missingKeys: string[];
+  configured: boolean;
+};
+
+export const getFirebaseConfig = (): FirebaseRuntimeConfig => {
+  const requiredConfig = {
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY?.trim() || "",
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN?.trim() || "",
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim() || "",
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.trim() || "",
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID?.trim() || "",
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID?.trim() || "",
+  };
+
+  const config = {
+    ...requiredConfig,
+    measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID?.trim(),
+  };
+
+  const missingKeys = Object.entries(requiredConfig)
+    .filter(([, value]) => !value)
+    .map(([key]) => firebaseConfigKeyToEnvName[key as keyof typeof firebaseConfigKeyToEnvName]);
+
+  return {
+    requiredConfig,
+    config,
+    missingKeys,
+    configured: missingKeys.length === 0,
+  };
+};
+
+export const isFirebaseConfigured = (): boolean => {
+  return getFirebaseConfig().configured;
 };
 
 const maskEnvValue = (value: string | undefined): string => {
@@ -65,7 +98,7 @@ const maskEnvValue = (value: string | undefined): string => {
   return `${value.slice(0, 4)}...${value.slice(-2)}`;
 };
 
-const logFirebaseEnvDebug = () => {
+const logFirebaseEnvDebug = (runtimeConfig: FirebaseRuntimeConfig) => {
   if (firebaseEnvDebugLogged || typeof window === "undefined") {
     return;
   }
@@ -85,8 +118,8 @@ const logFirebaseEnvDebug = () => {
   });
 
   console.info("[firebase] env debug", {
-    configured: isFirebaseConfigured,
-    missingKeys: firebaseMissingEnvKeys,
+    configured: runtimeConfig.configured,
+    missingKeys: runtimeConfig.missingKeys,
     values: debugValues,
   });
 
@@ -100,22 +133,22 @@ const logFirebaseEnvDebug = () => {
   firebaseEnvDebugLogged = true;
 };
 
-const validateFirebaseConfig = (): FirebaseConfigValidation => {
-  const missingKeys = Object.entries(requiredFirebaseConfig)
+const validateFirebaseConfig = (requiredConfig: FirebaseRuntimeConfig["requiredConfig"]): FirebaseConfigValidation => {
+  const missingKeys = Object.entries(requiredConfig)
     .filter(([, value]) => !value)
     .map(([key]) => key);
 
   const invalidKeys: string[] = [];
 
-  if (requiredFirebaseConfig.authDomain && !requiredFirebaseConfig.authDomain.endsWith("firebaseapp.com")) {
+  if (requiredConfig.authDomain && !requiredConfig.authDomain.endsWith("firebaseapp.com")) {
     invalidKeys.push("authDomain (must end with firebaseapp.com)");
   }
 
   if (
-    requiredFirebaseConfig.storageBucket
+    requiredConfig.storageBucket
     && !(
-      requiredFirebaseConfig.storageBucket.endsWith("appspot.com")
-      || requiredFirebaseConfig.storageBucket.endsWith("firebasestorage.app")
+      requiredConfig.storageBucket.endsWith("appspot.com")
+      || requiredConfig.storageBucket.endsWith("firebasestorage.app")
     )
   ) {
     invalidKeys.push("storageBucket (must end with appspot.com or firebasestorage.app)");
@@ -133,20 +166,22 @@ export const getFirebaseApp = (): FirebaseApp | null => {
     return null;
   }
 
-  logFirebaseEnvDebug();
+  const runtimeConfig = getFirebaseConfig();
 
-  if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-    console.error("Invalid Firebase config", firebaseConfig);
+  logFirebaseEnvDebug(runtimeConfig);
+
+  if (!runtimeConfig.config.apiKey || !runtimeConfig.config.projectId) {
+    console.error("Invalid Firebase config", runtimeConfig.config);
   }
 
-  const validation = validateFirebaseConfig();
+  const validation = validateFirebaseConfig(runtimeConfig.requiredConfig);
 
   if (!validation.valid) {
     if (!firebaseConfigWarningShown) {
       console.error("[firebase] config validation failed", {
         missingKeys: validation.missingKeys,
         invalidKeys: validation.invalidKeys,
-        config: firebaseConfig,
+        config: runtimeConfig.config,
       });
       firebaseConfigWarningShown = true;
     }
@@ -156,19 +191,19 @@ export const getFirebaseApp = (): FirebaseApp | null => {
 
   if (process.env.NODE_ENV !== "production") {
     console.info("[firebase] config (masked)", {
-      apiKey: maskEnvValue(firebaseConfig.apiKey),
-      authDomain: firebaseConfig.authDomain,
-      projectId: firebaseConfig.projectId,
-      storageBucket: firebaseConfig.storageBucket,
-      messagingSenderId: maskEnvValue(firebaseConfig.messagingSenderId),
-      appId: maskEnvValue(firebaseConfig.appId),
-      measurementId: firebaseConfig.measurementId || "",
+      apiKey: maskEnvValue(runtimeConfig.config.apiKey),
+      authDomain: runtimeConfig.config.authDomain,
+      projectId: runtimeConfig.config.projectId,
+      storageBucket: runtimeConfig.config.storageBucket,
+      messagingSenderId: maskEnvValue(runtimeConfig.config.messagingSenderId),
+      appId: maskEnvValue(runtimeConfig.config.appId),
+      measurementId: runtimeConfig.config.measurementId || "",
     });
   }
 
   if (!firebaseApp) {
     if (!getApps().length) {
-      firebaseApp = initializeApp(firebaseConfig);
+      firebaseApp = initializeApp(runtimeConfig.config);
     } else {
       firebaseApp = getApp();
     }

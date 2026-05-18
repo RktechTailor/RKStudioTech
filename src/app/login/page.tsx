@@ -82,6 +82,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { user, loading, setMockSession } = useAuth();
   const { trackAsync } = useGlobalLoading();
+  const firebaseConfigured = isFirebaseConfigured();
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -305,7 +306,7 @@ export default function LoginPage() {
               {success ? <Alert severity="success">{success}</Alert> : null}
               {error ? <Alert severity="error">{error}</Alert> : null}
 
-              {!useMockOtp && !isFirebaseConfigured ? (
+              {!useMockOtp && !firebaseConfigured ? (
                 <Alert severity="warning">
                   Service temporarily unavailable.
                 </Alert>
@@ -322,11 +323,11 @@ export default function LoginPage() {
               </Typography>
 
               {!otpSent ? (
-                <Button variant="contained" onClick={handleSendOtp} disabled={busy || (!useMockOtp && !isFirebaseConfigured)}>
+                <Button variant="contained" onClick={handleSendOtp} disabled={busy || (!useMockOtp && !firebaseConfigured)}>
                   {busy ? "Sending..." : "Send OTP"}
                 </Button>
               ) : (
-                <Button variant="contained" onClick={handleVerifyOtp} disabled={busy || (!useMockOtp && !isFirebaseConfigured)}>
+                <Button variant="contained" onClick={handleVerifyOtp} disabled={busy || (!useMockOtp && !firebaseConfigured)}>
                   {busy ? "Verifying..." : "Verify OTP"}
                 </Button>
               )}

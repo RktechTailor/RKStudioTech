@@ -49,7 +49,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
-    if (!isFirebaseConfigured) {
+    if (!isFirebaseConfigured()) {
       setLoading(false);
       return;
     }
