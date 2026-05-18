@@ -2,6 +2,7 @@ import {
   arrayUnion,
   collection,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -215,6 +216,60 @@ export const subscribeToAllOrders = (
       onError?.(error as Error);
     },
   );
+};
+
+export const fetchAllOrders = async (): Promise<UserOrder[]> => {
+  const db = getFirebaseDb();
+
+  if (!db) {
+    return [];
+  }
+
+  try {
+    const snapshot = await getDocs(collection(db, "orders"));
+    const orders = snapshot.docs.map((orderDoc) => {
+      const data = orderDoc.data() as Omit<UserOrder, "id">;
+
+      return {
+        id: orderDoc.id,
+        userId: data.userId,
+        service: data.service,
+        productId: data.productId || null,
+        orderDetails: data.orderDetails || {},
+        paymentStatus: (data.paymentStatus || "pending") as PaymentStatus,
+        paymentType: (data.paymentType || null) as PaymentType | null,
+        amountPaid: typeof data.amountPaid === "number" ? data.amountPaid : null,
+        advanceAmount: typeof data.advanceAmount === "number" ? data.advanceAmount : null,
+        remainingAmount: typeof data.remainingAmount === "number" ? data.remainingAmount : null,
+        finalPrice: typeof data.finalPrice === "number" ? data.finalPrice : null,
+        finalPayable: typeof data.finalPayable === "number" ? data.finalPayable : null,
+        totalPrice: typeof data.totalPrice === "number" ? data.totalPrice : null,
+        marketPrice: typeof data.marketPrice === "number" ? data.marketPrice : null,
+        discountPercentage: typeof data.discountPercentage === "number" ? data.discountPercentage : null,
+        discountAmount: typeof data.discountAmount === "number" ? data.discountAmount : null,
+        pricingType: (data.pricingType || null) as PricingType | null,
+        quantityOrMeter: typeof data.quantityOrMeter === "number" ? data.quantityOrMeter : null,
+        paymentId: data.paymentId || null,
+        status: (data.status || "pending") as OrderStatus,
+        statusHistory: (data.statusHistory || []) as OrderHistoryItem[],
+        assignedTo: data.assignedTo || null,
+        createdAt: data.createdAt || null,
+      };
+    });
+
+    orders.sort((a, b) => {
+      const aMillis = a.createdAt?.toMillis?.() ?? 0;
+      const bMillis = b.createdAt?.toMillis?.() ?? 0;
+      return bMillis - aMillis;
+    });
+
+    console.log("Orders fetched:", orders.length);
+
+    return orders;
+  } catch (err) {
+    console.error("Orders fetch error:", err);
+    return [];
+  }
 };
 
 export const getNextOrderStatus = (status: OrderStatus): OrderStatus | null => {

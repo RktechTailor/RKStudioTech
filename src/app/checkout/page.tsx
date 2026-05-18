@@ -1,12 +1,13 @@
 "use client";
 
 import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Divider, FormControl, FormControlLabel, Radio, RadioGroup, Stack, TextField, Typography } from "@mui/material";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
 import Layout from "@/components/layout/Layout";
 import { OrderDetails } from "@/services/orderService";
 import { useAuth } from "@/hooks/useAuth";
-import { getFirebaseAuth } from "@/services/firebase";
+import { getFirebaseAuth, getFirebaseDb } from "@/services/firebase";
 import { trackAnalyticsEvent } from "@/utils/analytics";
 import { RK_STUDIO } from "@/utils/constants";
 import { removeFabricCartItem, removeFabricCartItems } from "@/utils/fabricCart";
@@ -527,36 +528,44 @@ export default function CheckoutPage() {
     }
   };
 
-  const handleWhatsAppPayment = (event: React.MouseEvent<HTMLButtonElement>) => {
+  const handleContinueWithWhatsAppPayment = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
 
-    if (typeof window === "undefined") {
-      return;
+    const phone = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "919XXXXXXXXX";
+    const service = pendingOrder?.service || "fabric";
+    const total = pricingBreakdown?.finalPayable ?? finalAmount ?? 0;
+    const items = pendingOrder?.pricingInput?.lineItems || pendingOrder?.orderDetails || {};
+    const customerPhone = pendingOrder?.customerPhone || "";
+
+    try {
+      const db = getFirebaseDb();
+
+      if (db) {
+        await addDoc(collection(db, "orders"), {
+          token: token || `checkout-${Date.now()}`,
+          service,
+          items,
+          total,
+          phone: customerPhone,
+          createdAt: serverTimestamp(),
+        });
+
+        console.log("Order saved successfully");
+      }
+    } catch (saveError) {
+      console.error("[checkout] order save error before WhatsApp redirect", saveError);
     }
 
-    const phone = "919XXXXXXXXX";
-    const safeToken = token || "N/A";
-    const safeAmount = finalAmount || 0;
+    const message = encodeURIComponent(
+      `New Order\nToken: ${token || "N/A"}\nService: ${service}\nTotal: ₹${total || ""}`,
+    );
 
-    const message = `Order ID: ${safeToken} | Amount: ₹${safeAmount}`;
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    const url = `https://wa.me/${phone}?text=${message}`;
 
-    const newWindow = window.open(url, "_blank");
+    window.location.href = url;
 
-    console.log("WHATSAPP URL:", url);
-
-    if (!newWindow) {
-      console.warn("Popup blocked, fallback redirect");
-      window.location.href = url;
-      return;
-    }
-
-    void trackAnalyticsEvent("payment_fallback_whatsapp", {
-      service: pendingOrder?.service || "fabric",
-      payment_type: pendingOrder?.paymentType || "full",
-      value: safeAmount,
-    });
+    console.log("[checkout] whatsapp redirect", { token, service });
   };
 
   const renderTitle = () => {
@@ -755,7 +764,7 @@ export default function CheckoutPage() {
                   type="button"
                   variant="outlined"
                   color="success"
-                  onClick={handleWhatsAppPayment}
+                  onClick={handleContinueWithWhatsAppPayment}
                 >
                   Continue via WhatsApp Payment
                 </Button>

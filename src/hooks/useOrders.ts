@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { subscribeToAllOrders, subscribeToUserOrders, UserOrder } from "@/services/orderService";
+import { fetchAllOrders, subscribeToAllOrders, subscribeToUserOrders, UserOrder } from "@/services/orderService";
 
 type UseOrdersParams = {
   mode: "user" | "all";
@@ -39,12 +39,20 @@ export const useOrders = ({ mode, userId }: UseOrdersParams) => {
           )
         : subscribeToAllOrders(
             (nextOrders) => {
+              setError("");
               setOrders(nextOrders);
               setLoading(false);
             },
             () => {
               setError("Could not fetch orders.");
-              setLoading(false);
+              void (async () => {
+                const fallbackOrders = await fetchAllOrders();
+                setOrders(fallbackOrders);
+                if (fallbackOrders.length > 0) {
+                  setError("");
+                }
+                setLoading(false);
+              })();
             },
           );
 

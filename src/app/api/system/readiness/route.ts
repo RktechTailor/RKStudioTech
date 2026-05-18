@@ -13,6 +13,19 @@ const isTruthy = (value: string | undefined): boolean => {
   return Boolean(value && value.trim().length > 0);
 };
 
+const hasWrappingQuotes = (value: string | undefined): boolean => {
+  if (!value) {
+    return false;
+  }
+
+  const trimmed = value.trim();
+
+  return (
+    (trimmed.startsWith('"') && trimmed.endsWith('"'))
+    || (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  );
+};
+
 const buildChecks = () => {
   const firebaseClientChecks: CheckResult[] = [
     {
@@ -38,6 +51,42 @@ const buildChecks = () => {
       label: "Firebase app configured",
       ok: isTruthy(process.env.NEXT_PUBLIC_FIREBASE_APP_ID),
       help: "Set Firebase app ID.",
+    },
+    {
+      key: "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
+      label: "Firebase storage bucket configured",
+      ok: isTruthy(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET),
+      help: "Set Firebase storage bucket.",
+    },
+    {
+      key: "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
+      label: "Firebase messaging sender ID configured",
+      ok: isTruthy(process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID),
+      help: "Set Firebase messaging sender ID.",
+    },
+    {
+      key: "NEXT_PUBLIC_WHATSAPP_NUMBER",
+      label: "WhatsApp number configured",
+      ok: isTruthy(process.env.NEXT_PUBLIC_WHATSAPP_NUMBER),
+      help: "Set NEXT_PUBLIC_WHATSAPP_NUMBER for checkout redirects.",
+    },
+    {
+      key: "NEXT_PUBLIC_FIREBASE_API_KEY",
+      label: "Firebase API key not wrapped in quotes",
+      ok: !hasWrappingQuotes(process.env.NEXT_PUBLIC_FIREBASE_API_KEY),
+      help: "Remove wrapping single/double quotes from NEXT_PUBLIC_FIREBASE_API_KEY.",
+    },
+    {
+      key: "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
+      label: "Firebase auth domain not wrapped in quotes",
+      ok: !hasWrappingQuotes(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN),
+      help: "Remove wrapping single/double quotes from NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN.",
+    },
+    {
+      key: "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+      label: "Firebase project ID not wrapped in quotes",
+      ok: !hasWrappingQuotes(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID),
+      help: "Remove wrapping single/double quotes from NEXT_PUBLIC_FIREBASE_PROJECT_ID.",
     },
   ];
 
@@ -104,11 +153,21 @@ const buildChecks = () => {
     },
   ];
 
+  const appCheckChecks: CheckResult[] = [
+    {
+      key: "APP_CHECK_ENFORCEMENT",
+      label: "App Check enforcement reviewed",
+      ok: true,
+      help: "If Firestore fails only on Vercel, disable App Check enforcement temporarily or register your web app domain.",
+    },
+  ];
+
   return {
     firebaseClientChecks,
     firebaseAdminChecks,
     razorpayChecks,
     otpChecks,
+    appCheckChecks,
     razorpayEnabled,
     mockOtpEnabled,
   };
@@ -146,6 +205,7 @@ export async function GET(request: NextRequest) {
     firebaseAdminChecks,
     razorpayChecks,
     otpChecks,
+    appCheckChecks,
     razorpayEnabled,
     mockOtpEnabled,
   } = buildChecks();
@@ -155,6 +215,7 @@ export async function GET(request: NextRequest) {
     ...firebaseAdminChecks,
     ...razorpayChecks,
     ...otpChecks,
+    ...appCheckChecks,
   ];
 
   const summary = summarize(allChecks);
@@ -174,6 +235,7 @@ export async function GET(request: NextRequest) {
         firebaseAdmin: firebaseAdminChecks,
         payments: razorpayChecks,
         otpMode: otpChecks,
+        appCheck: appCheckChecks,
       },
       nextAction: summary.ok
         ? "You can proceed with deployment."
