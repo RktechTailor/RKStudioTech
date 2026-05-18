@@ -15,7 +15,7 @@ const lineItemSchema = z.object({
 });
 
 const finalizeSchema = z.object({
-  userId: z.string().min(1),
+  userId: z.string().min(1).optional(),
   service: z.enum(["tailoring", "fabric", "dupatta"]),
   customerPhone: z.string().optional(),
   items: z.array(z.string()).optional(),
@@ -33,43 +33,6 @@ const finalizeSchema = z.object({
     lineItems: z.array(lineItemSchema).optional(),
   }).optional(),
 });
-
-const verifyRequestUser = async (request: NextRequest) => {
-  const authHeader = request.headers.get("authorization") || request.headers.get("Authorization");
-
-  if (!authHeader?.startsWith("Bearer ")) {
-    return null;
-  }
-
-  const token = authHeader.slice(7).trim();
-
-  if (!token) {
-    return null;
-  }
-
-  if (process.env.NODE_ENV !== "production" && token.startsWith("mock:")) {
-    const [, uid, role] = token.split(":");
-
-    if (!uid) {
-      return null;
-    }
-
-    return {
-      uid,
-      role: role || "user",
-    };
-  }
-
-  const decoded = await getAdminAuth().verifyIdToken(token);
-
-  return {
-    uid: decoded.uid,
-    role:
-      decoded.admin === true || decoded.role === "admin" || decoded.custom_claim_role === "admin"
-        ? "admin"
-        : "user",
-  };
-};
 
 const getTailoringFallbackPricing = () => {
   const marketPrice = Number(process.env.NEXT_PUBLIC_TAILORING_MARKET_PRICE || 1000);
@@ -252,13 +215,30 @@ const createSafeOrder = async (
 };
 
 export async function POST(request: NextRequest) {
-  let requester: Awaited<ReturnType<typeof verifyRequestUser>> | null = null;
+  let uid: string | null = null;
   let body: unknown;
 
   try {
-    requester = await verifyRequestUser(request);
+    const authHeader = request.headers.get("authorization") || request.headers.get("Authorization");
 
-    if (!requester) {
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const token = authHeader.replace("Bearer ", "").trim();
+
+    let decoded: Awaited<ReturnType<ReturnType<typeof getAdminAuth>["verifyIdToken"]>>;
+
+    try {
+      decoded = await getAdminAuth().verifyIdToken(token);
+    } catch {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    }
+
+    uid = decoded.uid;
+    console.log("FINALIZE USER UID:", uid);
+
+    if (!uid) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -277,7 +257,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
       }
 
-      const safeOrder = await createSafeOrder(requester.uid, {
+      const safeOrder = await createSafeOrder(uid, {
         productId,
         total,
         phone,
@@ -292,14 +272,7 @@ export async function POST(request: NextRequest) {
     }
 
     const input = parsedInput.data;
-
-    if (requester.uid !== input.userId && requester.role !== "admin") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const resolvedUserId = requester.role === "admin"
-      ? input.userId
-      : requester.uid;
+    const resolvedUserId = uid;
 
     const normalizedPhone = normalizePhone(input.customerPhone);
 
@@ -454,13 +427,13 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      if (requester && body && typeof body === "object") {
+      if (uid && body && typeof body === "object") {
         const raw = body as Record<string, unknown>;
         const productId = toNonEmptyString(raw.productId);
         const total = toPositiveNumber(raw.total ?? raw.amountPaid);
 
         if (productId && total) {
-          const safeOrder = await createSafeOrder(requester.uid, {
+          const safeOrder = await createSafeOrder(uid, {
             productId,
             total,
             phone: toNonEmptyString(raw.phone || raw.customerPhone),
