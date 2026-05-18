@@ -86,6 +86,17 @@ const getTailoringFallbackPricing = () => {
   };
 };
 
+const normalizePhone = (phone?: string) => (phone || "").replace(/\D/g, "").slice(-10);
+
+const buildBusinessOrderId = () => {
+  const now = new Date();
+  const yyyy = String(now.getFullYear());
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const suffix = Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4).padEnd(4, "X");
+  return `ORD-${yyyy}${mm}${dd}-${suffix}`;
+};
+
 const buildPricingFromProduct = (
   product: NonNullable<Awaited<ReturnType<typeof getProductById>>>,
   quantityOrMeter: number,
@@ -174,7 +185,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const normalizedPhone = normalizePhone(input.customerPhone);
+
+    if (!normalizedPhone) {
+      return NextResponse.json({ error: "Phone number is required." }, { status: 400 });
+    }
+
+    const hasProductRef = Boolean((input.productId || "").trim() || (input.pricingInput?.productId || "").trim());
+    const hasNonEmptyItems = Boolean(input.items?.some((item) => typeof item === "string" && item.trim().length > 0));
+
+    if (input.service !== "tailoring" && !hasProductRef) {
+      return NextResponse.json({ error: "Product selection is required." }, { status: 400 });
+    }
+
+    if (!hasProductRef && !hasNonEmptyItems) {
+      return NextResponse.json({ error: "Order must include at least one product item." }, { status: 400 });
+    }
+
     const pricing = await resolvePricing(input);
+
+    if (pricing.finalPrice <= 0 || pricing.finalPayable <= 0) {
+      return NextResponse.json({ error: "Invalid order amount." }, { status: 400 });
+    }
 
     const payableAmount = input.paymentType === "advance"
       ? pricing.advanceAmount
@@ -190,6 +222,7 @@ export async function POST(request: NextRequest) {
     const db = getFirebaseAdminDb();
     const orderRef = db.collection("orders").doc();
     const paymentRef = db.collection("payment_records").doc(input.paymentId);
+    const businessOrderId = buildBusinessOrderId();
 
     await db.runTransaction(async (transaction) => {
       const existingPayment = await transaction.get(paymentRef);
@@ -211,8 +244,10 @@ export async function POST(request: NextRequest) {
 
       transaction.set(orderRef, {
         id: orderRef.id,
+        orderCode: businessOrderId,
         userId: input.userId,
         phone: input.customerPhone || null,
+        normalizedPhone,
         items: input.items || [],
         total: pricing.finalPayable,
         service: input.service,
@@ -263,17 +298,20 @@ export async function POST(request: NextRequest) {
 
     console.info("[orders] finalize_success", {
       orderId: orderRef.id,
+      businessOrderId,
       userId: input.userId,
       service: input.service,
       amountPaid: input.amountPaid,
       paymentType: input.paymentType,
       finalPrice: pricing.finalPrice,
     });
+    console.log("ORDER CREATED:", businessOrderId);
 
     return NextResponse.json(
       {
         success: true,
         orderId: orderRef.id,
+        businessOrderId,
         pricing,
       },
       { status: 200 },

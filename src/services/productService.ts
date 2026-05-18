@@ -60,7 +60,9 @@ export type CatalogProduct = {
   type: string;
   category: ProductCategory;
   image: string;
+  imageUrl?: string;
   tag: string;
+  isActive: boolean;
   createdAt: Timestamp | null;
   description?: string;
   inStock?: boolean;
@@ -81,7 +83,9 @@ type ProductInput = {
   type: string;
   category: ProductCategory;
   image: string;
+  imageUrl?: string;
   tag: string;
+  isActive?: boolean;
   description?: string;
   discountPercent?: number;
   rating?: number;
@@ -127,8 +131,10 @@ const toProduct = (id: string, data: Partial<CatalogProduct>): CatalogProduct =>
         : "piece",
   type: data.type || "general",
   category: normalizeCategory(data.category),
-  image: data.image || "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=80",
+  image: data.image || data.imageUrl || "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=80",
+  imageUrl: data.image || data.imageUrl || "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=80",
   tag: data.tag || "daily wear",
+  isActive: data.isActive !== false,
   createdAt: (data.createdAt as Timestamp) || null,
   description: data.description || `${data.tag || "daily wear"} ${data.type || "general"} product`,
   inStock: data.inStock ?? true,
@@ -212,6 +218,8 @@ export const addProduct = async (input: ProductInput) => {
   await setDoc(productRef, {
     id: productRef.id,
     ...input,
+    imageUrl: input.imageUrl || input.image,
+    isActive: input.isActive !== false,
     createdAt: serverTimestamp(),
   });
 
@@ -227,6 +235,20 @@ export const updateProduct = async (id: string, input: ProductInput) => {
 
   await updateDoc(doc(db, "products", id), {
     ...input,
+    imageUrl: input.imageUrl || input.image,
+    isActive: input.isActive !== false,
+  });
+};
+
+export const setProductActiveState = async (id: string, isActive: boolean) => {
+  const db = getFirebaseDb();
+
+  if (!db) {
+    throw new Error("Firebase is not configured.");
+  }
+
+  await updateDoc(doc(db, "products", id), {
+    isActive,
   });
 };
 
@@ -276,10 +298,11 @@ export const subscribeToAllProducts = (
       const firestoreProducts = snapshot.docs.map((productDoc) =>
         toProduct(productDoc.id, productDoc.data() as Partial<CatalogProduct>),
       );
+      const activeProducts = firestoreProducts.filter((product) => product.isActive !== false);
 
       onProducts(
-        firestoreProducts.length
-          ? firestoreProducts.sort(byCreatedAtDesc)
+        activeProducts.length
+          ? activeProducts.sort(byCreatedAtDesc)
           : allowMockCatalogFallback
             ? [...dummyCatalogProducts].sort(byNewestFallback)
             : [],
@@ -319,10 +342,11 @@ export const subscribeToProductsByCategory = (
         toProduct(productDoc.id, productDoc.data() as Partial<CatalogProduct>),
       );
       const categoryProducts = firestoreProducts.filter((product) => product.category === category);
+      const activeCategoryProducts = categoryProducts.filter((product) => product.isActive !== false);
 
       onProducts(
-        categoryProducts.length
-          ? categoryProducts.sort(byCreatedAtDesc)
+        activeCategoryProducts.length
+          ? activeCategoryProducts.sort(byCreatedAtDesc)
           : allowMockCatalogFallback
             ? dummyCatalogProducts.filter((product) => product.category === category)
             : [],
@@ -422,7 +446,7 @@ export const getProductsByCategoryPage = async (
 
   const products = snapshot.docs
     .map((productDoc) => toProduct(productDoc.id, productDoc.data() as Partial<CatalogProduct>))
-    .filter((product) => product.category === category);
+    .filter((product) => product.category === category && product.isActive !== false);
   const nextCursor = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : cursor;
 
   if (!products.length) {
@@ -433,7 +457,7 @@ export const getProductsByCategoryPage = async (
       console.log("[products] Full collection count:", fullSnapshot.size);
       const directProducts = fullSnapshot.docs
         .map((d) => toProduct(d.id, d.data() as Partial<CatalogProduct>))
-        .filter((p) => p.category === category);
+        .filter((p) => p.category === category && p.isActive !== false);
       console.log("[products] Direct-filtered for category:", category, "count:", directProducts.length);
       if (directProducts.length) {
         return {
@@ -489,7 +513,7 @@ export const fetchProductsByCategory = async (category: ProductCategory): Promis
     }
 
     const all = snapshot.docs.map((d) => toProduct(d.id, d.data() as Partial<CatalogProduct>));
-    const filtered = all.filter((p) => p.category === category);
+    const filtered = all.filter((p) => p.category === category && p.isActive !== false);
     console.log("[products] Filtered for category:", category, "count:", filtered.length);
 
     if (!filtered.length && allowMockCatalogFallback) {

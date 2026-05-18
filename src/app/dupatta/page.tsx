@@ -147,7 +147,7 @@ export default function DupattaPage() {
         {!loading && filteredProducts.length === 0 ? (
           <Stack spacing={1.25}>
             <Alert severity="info">
-              No products available. Please contact via WhatsApp.
+              Products coming soon
             </Alert>
             <Button
               component="a"

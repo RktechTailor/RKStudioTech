@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
   Grid2,
   MenuItem,
@@ -15,6 +16,7 @@ import {
   TableBody,
   TableCell,
   TableHead,
+  TablePagination,
   TableRow,
   TextField,
   Typography,
@@ -28,13 +30,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { getFirebaseAuth } from "@/services/firebase";
 import { useOrders } from "@/hooks/useOrders";
 import {
-  getNextOrderStatus,
   markOrderPaymentAsPaid,
-  OrderApprovalStatus,
+  normalizeOrderStatus,
   OrderDetails,
   OrderServiceType,
   OrderStatus,
-  updateOrderApprovalStatus,
   updateOrderStatus,
   UserOrder,
 } from "@/services/orderService";
@@ -43,13 +43,26 @@ import { clearDummyProducts, seedDummyProducts } from "@/services/productService
 import { useAutoSeed } from "@/hooks/useAutoSeed";
 import PreLaunchFlow from "@/features/admin/PreLaunchFlow";
 import { UserRole } from "@/types/auth";
-import { buildUserOrderDecisionWhatsAppUrl, openWhatsAppInNewTab } from "@/utils/whatsapp";
+import { buildUserOrderStatusWhatsAppUrl, openWhatsAppInNewTab } from "@/utils/whatsapp";
 
 const formatStatusLabel = (status: OrderStatus) => {
   if (status === "pending") return "Pending";
-  if (status === "in_progress" || status === "in progress") return "In Progress";
-  if (status === "done") return "Done";
+  if (status === "accepted") return "Accepted";
+  if (status === "rejected") return "Rejected";
+  if (status === "stitching" || status === "in_progress" || status === "in progress") return "Stitching";
+  if (status === "ready") return "Ready";
+  if (status === "delivered" || status === "done") return "Delivered";
   return status;
+};
+
+const getStatusChipColor = (status: OrderStatus) => {
+  if (status === "pending") return "warning" as const;
+  if (status === "accepted") return "success" as const;
+  if (status === "rejected") return "error" as const;
+  if (status === "stitching" || status === "in_progress" || status === "in progress") return "info" as const;
+  if (status === "ready") return "secondary" as const;
+  if (status === "delivered" || status === "done") return "default" as const;
+  return "default" as const;
 };
 
 const formatDate = (createdAt: UserOrder["createdAt"] | AppUser["createdAt"]) => {
@@ -100,28 +113,6 @@ const flattenOrderDetails = (details: OrderDetails, parentLabel?: string): strin
 const createOrderDetailsText = (order: UserOrder) => {
   return flattenOrderDetails(order.orderDetails)
     .join(" | ");
-};
-
-const getOrderSizeSummary = (order: UserOrder) => {
-  const sizeType = typeof order.orderDetails?.size_type === "string"
-    ? order.orderDetails.size_type.trim().toLowerCase()
-    : "";
-  const sizeValue = typeof order.orderDetails?.size_value === "string"
-    ? order.orderDetails.size_value.trim()
-    : "";
-  const customSizeNotes = typeof order.orderDetails?.custom_size_notes === "string"
-    ? order.orderDetails.custom_size_notes.trim()
-    : "";
-
-  if (sizeType === "custom" && customSizeNotes) {
-    return `Custom Size: ${customSizeNotes}`;
-  }
-
-  if (sizeType === "standard" && sizeValue) {
-    return `Size: ${sizeValue}`;
-  }
-
-  return "";
 };
 
 const escapeCsvValue = (value: string | number) => {
@@ -180,18 +171,6 @@ const getPaymentChipColor = (status: UserOrder["paymentStatus"]) => {
 
   if (status === "partial") {
     return "info" as const;
-  }
-
-  return "warning" as const;
-};
-
-const getApprovalChipColor = (status?: OrderApprovalStatus) => {
-  if (status === "accepted") {
-    return "success" as const;
-  }
-
-  if (status === "rejected") {
-    return "error" as const;
   }
 
   return "warning" as const;
@@ -340,14 +319,18 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [salesRange, setSalesRange] = useState<SalesRange>(7);
   const [search, setSearch] = useState("");
+  const [orderPhoneFilter, setOrderPhoneFilter] = useState("");
+  const [fromDateFilter, setFromDateFilter] = useState("");
+  const [toDateFilter, setToDateFilter] = useState("");
   const [serviceFilter, setServiceFilter] = useState<"all" | OrderServiceType>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
   const [paymentFollowupFilter, setPaymentFollowupFilter] = useState<PaymentFollowupFilter>("all");
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [updatingOrderId, setUpdatingOrderId] = useState("");
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [ordersPage, setOrdersPage] = useState(0);
   const [updatingPaymentOrderId, setUpdatingPaymentOrderId] = useState("");
-  const [updatingApprovalOrderId, setUpdatingApprovalOrderId] = useState("");
   const [updatingUserRoleId, setUpdatingUserRoleId] = useState("");
   const [deletingUserId, setDeletingUserId] = useState("");
   const [launchFlowOpen, setLaunchFlowOpen] = useState(false);
@@ -458,6 +441,20 @@ export default function AdminDashboard() {
       .reduce((sum, order) => sum + (order.finalPrice || getOrderAmount(order)), 0);
   }, [orders]);
 
+  const pendingOrdersCount = useMemo(
+    () => orders.filter((order) => normalizeOrderStatus(order.status) === "pending").length,
+    [orders],
+  );
+
+  const todayRevenue = useMemo(() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+
+    return orders
+      .filter((order) => order.paymentStatus === "paid" && order.createdAt?.toDate && order.createdAt.toDate() >= start)
+      .reduce((sum, order) => sum + (order.finalPrice || getOrderAmount(order)), 0);
+  }, [orders]);
+
   const advanceCollected = useMemo(() => {
     return orders
       .filter((order) => order.paymentStatus === "partial")
@@ -501,16 +498,42 @@ export default function AdminDashboard() {
   }, [search, users]);
 
   const filteredOrders = useMemo(() => {
+    const normalizedPhoneFilter = orderPhoneFilter.replace(/\D/g, "");
+    const fromTime = fromDateFilter ? new Date(`${fromDateFilter}T00:00:00`).getTime() : null;
+    const toTime = toDateFilter ? new Date(`${toDateFilter}T23:59:59.999`).getTime() : null;
+
     return orders.filter((order) => {
+      const linkedUser = usersById[order.userId];
       const byService = serviceFilter === "all" || order.service === serviceFilter;
       const byStatus =
         statusFilter === "all" ||
         order.status === statusFilter ||
         (statusFilter === "in progress" && order.status === ("in_progress" as OrderStatus));
 
-      return byService && byStatus;
+      const candidatePhone = ((order.phone || linkedUser?.phone || "").replace(/\D/g, ""));
+      const byPhone = !normalizedPhoneFilter || candidatePhone.includes(normalizedPhoneFilter);
+
+      const orderTime = order.createdAt?.toDate?.().getTime?.() || 0;
+      const byFromDate = fromTime === null || orderTime >= fromTime;
+      const byToDate = toTime === null || orderTime <= toTime;
+
+      return byService && byStatus && byPhone && byFromDate && byToDate;
     });
-  }, [orders, serviceFilter, statusFilter]);
+  }, [orders, serviceFilter, statusFilter, orderPhoneFilter, fromDateFilter, toDateFilter, usersById]);
+
+  const paginatedOrders = useMemo(() => {
+    const start = ordersPage * 20;
+    return filteredOrders.slice(start, start + 20);
+  }, [filteredOrders, ordersPage]);
+
+  useEffect(() => {
+    setOrdersPage(0);
+  }, [serviceFilter, statusFilter, orderPhoneFilter, fromDateFilter, toDateFilter]);
+
+  useEffect(() => {
+    const allowedIds = new Set(filteredOrders.map((order) => order.id));
+    setSelectedOrderIds((prev) => prev.filter((id) => allowedIds.has(id)));
+  }, [filteredOrders]);
 
   const handleExportOrders = () => {
     const rows = orders.map((order) => {
@@ -554,18 +577,77 @@ export default function AdminDashboard() {
     );
   };
 
-  const handleAdvanceStatus = async (order: UserOrder) => {
-    const nextStatus = getNextOrderStatus(order.status);
+  const handleUpdateStatus = async (order: UserOrder, status: OrderStatus, successNote: string) => {
+    try {
+      setUpdatingOrderId(order.id);
+      await trackAsync(updateOrderStatus(order.id, status, user?.phoneNumber || "admin", "Updated by admin"));
 
-    if (!nextStatus) {
+      const linkedUser = usersById[order.userId];
+      const targetPhone = (order.phone || linkedUser?.phone || "").replace(/\D/g, "");
+
+      if (["accepted", "rejected", "stitching", "ready", "delivered"].includes(status)) {
+        const waUrl = buildUserOrderStatusWhatsAppUrl({
+          phone: targetPhone,
+          status: status as "accepted" | "rejected" | "stitching" | "ready" | "delivered",
+        });
+
+        if (waUrl) {
+          openWhatsAppInNewTab(waUrl);
+        }
+      }
+
+      setSuccessMessage(successNote);
+    } catch {
+      setError("Could not update order status.");
+    } finally {
+      setUpdatingOrderId("");
+    }
+  };
+
+  const handleToggleOrderSelection = (orderId: string) => {
+    setSelectedOrderIds((prev) => {
+      if (prev.includes(orderId)) {
+        return prev.filter((id) => id !== orderId);
+      }
+
+      return [...prev, orderId];
+    });
+  };
+
+  const handleToggleSelectAllVisible = () => {
+    const visibleIds = paginatedOrders.map((order) => order.id);
+
+    setSelectedOrderIds((prev) => {
+      const allSelected = visibleIds.every((id) => prev.includes(id));
+
+      if (allSelected) {
+        return prev.filter((id) => !visibleIds.includes(id));
+      }
+
+      return Array.from(new Set([...prev, ...visibleIds]));
+    });
+  };
+
+  const handleBulkStatusUpdate = async (status: "stitching" | "delivered") => {
+    if (selectedOrderIds.length === 0) {
+      setError("Select at least one order for bulk update.");
       return;
     }
 
     try {
-      setUpdatingOrderId(order.id);
-      await trackAsync(updateOrderStatus(order.id, nextStatus, user?.phoneNumber || "admin", "Updated by admin"));
+      setUpdatingOrderId("bulk");
+
+      await Promise.all(
+        selectedOrderIds.map((orderId) =>
+          trackAsync(updateOrderStatus(orderId, status, user?.phoneNumber || "admin", "Bulk updated by admin")),
+        ),
+      );
+
+      setSuccessMessage(`Updated ${selectedOrderIds.length} orders to ${status}.`);
+      setSelectedOrderIds([]);
+      setOrdersPage(0);
     } catch {
-      setError("Could not update order status.");
+      setError("Could not apply bulk status update.");
     } finally {
       setUpdatingOrderId("");
     }
@@ -586,34 +668,6 @@ export default function AdminDashboard() {
       setError("Could not mark payment as paid.");
     } finally {
       setUpdatingPaymentOrderId("");
-    }
-  };
-
-  const handleApprovalStatus = async (order: UserOrder, approvalStatus: OrderApprovalStatus) => {
-    if (approvalStatus === "pending") {
-      return;
-    }
-
-    try {
-      setUpdatingApprovalOrderId(order.id);
-      await trackAsync(updateOrderApprovalStatus(order.id, approvalStatus, user?.phoneNumber || "admin"));
-
-      const linkedUser = usersById[order.userId];
-      const userPhone = (order.phone || linkedUser?.phone || "").replace(/\D/g, "");
-      const waUrl = buildUserOrderDecisionWhatsAppUrl({
-        phone: userPhone,
-        status: approvalStatus,
-      });
-
-      if (waUrl) {
-        openWhatsAppInNewTab(waUrl);
-      }
-
-      setSuccessMessage(`Order ${approvalStatus}. User notification prepared on WhatsApp.`);
-    } catch {
-      setError("Could not update order approval status.");
-    } finally {
-      setUpdatingApprovalOrderId("");
     }
   };
 
@@ -728,8 +782,17 @@ export default function AdminDashboard() {
           <Grid2 size={{ xs: 12, md: 4 }}>
             <Card>
               <CardContent>
-                <Typography variant="body2" color="text.secondary">Total Users</Typography>
-                <Typography variant="h5" sx={{ fontWeight: 700 }}>{users.length}</Typography>
+                <Typography variant="body2" color="text.secondary">Pending Orders</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>{pendingOrdersCount}</Typography>
+              </CardContent>
+            </Card>
+          </Grid2>
+
+          <Grid2 size={{ xs: 12, md: 4 }}>
+            <Card>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary">Revenue Today</Typography>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>{formatINR(todayRevenue)}</Typography>
               </CardContent>
             </Card>
           </Grid2>
@@ -924,6 +987,242 @@ export default function AdminDashboard() {
             <Stack spacing={2}>
               <Typography variant="h5">Orders</Typography>
 
+              <Stack direction={{ xs: "column", lg: "row" }} spacing={1.5}>
+                <TextField
+                  label="Filter by phone"
+                  value={orderPhoneFilter}
+                  onChange={(event) => setOrderPhoneFilter(event.target.value)}
+                  placeholder="10 digits"
+                  size="small"
+                  sx={{ minWidth: 180 }}
+                />
+                <TextField
+                  type="date"
+                  label="From"
+                  value={fromDateFilter}
+                  onChange={(event) => setFromDateFilter(event.target.value)}
+                  size="small"
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  sx={{ minWidth: 140 }}
+                />
+                <TextField
+                  type="date"
+                  label="To"
+                  value={toDateFilter}
+                  onChange={(event) => setToDateFilter(event.target.value)}
+                  size="small"
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  sx={{ minWidth: 140 }}
+                />
+                <TextField
+                  select
+                  label="Service"
+                  value={serviceFilter}
+                  onChange={(event) => setServiceFilter(event.target.value as "all" | OrderServiceType)}
+                  size="small"
+                  sx={{ minWidth: 140 }}
+                >
+                  <MenuItem value="all">All services</MenuItem>
+                  <MenuItem value="tailoring">Tailoring</MenuItem>
+                  <MenuItem value="fabric">Fabric</MenuItem>
+                  <MenuItem value="dupatta">Dupatta</MenuItem>
+                </TextField>
+
+                <TextField
+                  select
+                  label="Status"
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value as "all" | OrderStatus)}
+                  size="small"
+                  sx={{ minWidth: 140 }}
+                >
+                  <MenuItem value="all">All status</MenuItem>
+                  <MenuItem value="pending">Pending</MenuItem>
+                  <MenuItem value="accepted">Accepted</MenuItem>
+                  <MenuItem value="rejected">Rejected</MenuItem>
+                  <MenuItem value="stitching">Stitching</MenuItem>
+                  <MenuItem value="ready">Ready</MenuItem>
+                  <MenuItem value="delivered">Delivered</MenuItem>
+                </TextField>
+              </Stack>
+
+              {selectedOrderIds.length > 0 ? (
+                <Alert severity="info">
+                  {selectedOrderIds.length} orders selected |{" "}
+                  <Button
+                    size="small"
+                    onClick={() => handleBulkStatusUpdate("stitching")}
+                    disabled={updatingOrderId === "bulk"}
+                    sx={{ ml: 1 }}
+                  >
+                    Bulk: Stitching
+                  </Button>
+                  <Button
+                    size="small"
+                    onClick={() => handleBulkStatusUpdate("delivered")}
+                    disabled={updatingOrderId === "bulk"}
+                    sx={{ ml: 1 }}
+                  >
+                    Bulk: Delivered
+                  </Button>
+                  <Button
+                    size="small"
+                    onClick={() => setSelectedOrderIds([])}
+                    sx={{ ml: 1 }}
+                  >
+                    Clear
+                  </Button>
+                </Alert>
+              ) : null}
+
+              <Box sx={{ overflowX: "auto" }}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          size="small"
+                          checked={
+                            paginatedOrders.length > 0
+                            && paginatedOrders.every((order) => selectedOrderIds.includes(order.id))
+                          }
+                          indeterminate={
+                            paginatedOrders.some((order) => selectedOrderIds.includes(order.id))
+                            && !paginatedOrders.every((order) => selectedOrderIds.includes(order.id))
+                          }
+                          onChange={handleToggleSelectAllVisible}
+                        />
+                      </TableCell>
+                      <TableCell>Order Code</TableCell>
+                      <TableCell>User</TableCell>
+                      <TableCell>Phone</TableCell>
+                      <TableCell>Items</TableCell>
+                      <TableCell>Total</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Date</TableCell>
+                      <TableCell>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {paginatedOrders.map((order) => {
+                      const linkedUser = usersById[order.userId];
+                      const userName = linkedUser?.name || "User";
+                      const userPhone = linkedUser?.phone || "";
+                      const detailsText = createOrderDetailsText(order);
+                      const displayItems = (order.items && order.items.length > 0)
+                        ? order.items.join(", ")
+                        : detailsText || order.service;
+                      const totalAmount = order.total || order.finalPayable || order.finalPrice || order.totalPrice || getOrderAmount(order);
+                      const isUpdatingThisRow = updatingOrderId === order.id;
+
+                      return (
+                        <TableRow key={order.id}>
+                          <TableCell padding="checkbox">
+                            <Checkbox
+                              size="small"
+                              checked={selectedOrderIds.includes(order.id)}
+                              onChange={() => handleToggleOrderSelection(order.id)}
+                            />
+                          </TableCell>
+                          <TableCell>{order.orderCode || order.id.slice(0, 8)}</TableCell>
+                          <TableCell>{userName}</TableCell>
+                          <TableCell>{userPhone || "-"}</TableCell>
+                          <TableCell sx={{ maxWidth: 200, fontSize: "0.85rem" }}>
+                            <Typography variant="body2">{displayItems}</Typography>
+                          </TableCell>
+                          <TableCell>{formatINR(Number(totalAmount || 0))}</TableCell>
+                          <TableCell>
+                            <Chip label={formatStatusLabel(order.status)} size="small" color={getStatusChipColor(order.status)} />
+                          </TableCell>
+                          <TableCell sx={{ fontSize: "0.85rem" }}>{formatDate(order.createdAt)}</TableCell>
+                          <TableCell>
+                            <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap">
+                              {order.status !== "accepted" ? (
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  color="success"
+                                  onClick={() => handleUpdateStatus(order, "accepted", "Order accepted.")}
+                                  disabled={isUpdatingThisRow}
+                                  sx={{ minWidth: "fit-content" }}
+                                >
+                                  Accept
+                                </Button>
+                              ) : null}
+
+                              {order.status !== "stitching" ? (
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  color="info"
+                                  onClick={() => handleUpdateStatus(order, "stitching", "Order moved to stitching.")}
+                                  disabled={isUpdatingThisRow}
+                                  sx={{ minWidth: "fit-content" }}
+                                >
+                                  Stitch
+                                </Button>
+                              ) : null}
+
+                              {order.status !== "ready" ? (
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  color="secondary"
+                                  onClick={() => handleUpdateStatus(order, "ready", "Order marked ready.")}
+                                  disabled={isUpdatingThisRow}
+                                  sx={{ minWidth: "fit-content" }}
+                                >
+                                  Ready
+                                </Button>
+                              ) : null}
+
+                              {order.status !== "delivered" && order.status !== "done" ? (
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() => handleUpdateStatus(order, "delivered", "Order marked delivered.")}
+                                  disabled={isUpdatingThisRow}
+                                  sx={{ minWidth: "fit-content" }}
+                                >
+                                  Done
+                                </Button>
+                              ) : null}
+                            </Stack>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+
+                    {paginatedOrders.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9}>No orders found for filters.</TableCell>
+                      </TableRow>
+                    ) : null}
+                  </TableBody>
+                </Table>
+              </Box>
+
+              {filteredOrders.length > 20 ? (
+                <TablePagination
+                  component="div"
+                  count={filteredOrders.length}
+                  page={ordersPage}
+                  onPageChange={(event, newPage) => setOrdersPage(newPage)}
+                  rowsPerPage={20}
+                  onRowsPerPageChange={() => {}}
+                  rowsPerPageOptions={[20]}
+                  sx={{ justifyContent: "flex-end" }}
+                />
+              ) : null}
+            </Stack>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent>
+            <Stack spacing={2}>
+              <Typography variant="h5">Orders</Typography>
+
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                 <TextField
                   select
@@ -947,8 +1246,11 @@ export default function AdminDashboard() {
                 >
                   <MenuItem value="all">All status</MenuItem>
                   <MenuItem value="pending">Pending</MenuItem>
-                  <MenuItem value="in progress">In Progress</MenuItem>
-                  <MenuItem value="done">Done</MenuItem>
+                  <MenuItem value="accepted">Accepted</MenuItem>
+                  <MenuItem value="rejected">Rejected</MenuItem>
+                  <MenuItem value="stitching">Stitching</MenuItem>
+                  <MenuItem value="ready">Ready</MenuItem>
+                  <MenuItem value="delivered">Delivered</MenuItem>
                 </TextField>
               </Stack>
 
@@ -958,13 +1260,11 @@ export default function AdminDashboard() {
                     <TableRow>
                       <TableCell>User</TableCell>
                       <TableCell>Phone</TableCell>
-                      <TableCell>Service</TableCell>
-                      <TableCell>Payment</TableCell>
-                      <TableCell>Details</TableCell>
-                      <TableCell>Approval</TableCell>
+                      <TableCell>Items</TableCell>
+                      <TableCell>Total</TableCell>
                       <TableCell>Status</TableCell>
                       <TableCell>Date</TableCell>
-                      <TableCell>Action</TableCell>
+                      <TableCell>Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -972,60 +1272,33 @@ export default function AdminDashboard() {
                       const linkedUser = usersById[order.userId];
                       const userName = linkedUser?.name || "User";
                       const userPhone = linkedUser?.phone || "";
-                      const nextStatus = getNextOrderStatus(order.status);
-                      const currentApprovalStatus = order.approvalStatus || "pending";
                       const detailsText = createOrderDetailsText(order);
-                      const sizeSummary = getOrderSizeSummary(order);
+                      const displayItems = (order.items && order.items.length > 0)
+                        ? order.items.join(", ")
+                        : detailsText || order.service;
+                      const totalAmount = order.total || order.finalPayable || order.finalPrice || order.totalPrice || getOrderAmount(order);
+                      const isUpdatingThisRow = updatingOrderId === order.id;
 
                       return (
                         <TableRow key={order.id}>
                           <TableCell>{userName}</TableCell>
                           <TableCell>{userPhone || "-"}</TableCell>
-                          <TableCell sx={{ textTransform: "capitalize" }}>{order.service}</TableCell>
-                          <TableCell>
-                            <Stack spacing={0.6}>
-                              <Chip
-                                label={order.paymentStatus === "paid" ? "Paid" : order.paymentStatus === "partial" ? "Partial" : "Pending"}
-                                size="small"
-                                color={getPaymentChipColor(order.paymentStatus)}
-                              />
-                              <Typography variant="caption" color="text.secondary">
-                                {order.paymentType ? `Type: ${order.paymentType}` : "Type: -"}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                Amount: {formatINR(getOrderAmount(order))}
-                              </Typography>
-                            </Stack>
-                          </TableCell>
                           <TableCell sx={{ maxWidth: 260 }}>
-                            <Stack spacing={0.3}>
-                              {sizeSummary ? (
-                                <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                                  {sizeSummary}
-                                </Typography>
-                              ) : null}
-                              <Typography variant="body2">{detailsText || "-"}</Typography>
-                            </Stack>
+                            <Typography variant="body2">{displayItems}</Typography>
                           </TableCell>
+                          <TableCell>{formatINR(Number(totalAmount || 0))}</TableCell>
                           <TableCell>
-                            <Chip
-                              label={currentApprovalStatus.charAt(0).toUpperCase() + currentApprovalStatus.slice(1)}
-                              size="small"
-                              color={getApprovalChipColor(currentApprovalStatus)}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Chip label={formatStatusLabel(order.status)} size="small" color={order.status === "done" ? "success" : "warning"} />
+                            <Chip label={formatStatusLabel(order.status)} size="small" color={getStatusChipColor(order.status)} />
                           </TableCell>
                           <TableCell>{formatDate(order.createdAt)}</TableCell>
                           <TableCell>
-                            <Stack direction="row" spacing={1}>
+                            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                               <Button
                                 size="small"
                                 variant="outlined"
                                 color="success"
-                                onClick={() => handleApprovalStatus(order, "accepted")}
-                                disabled={updatingApprovalOrderId === order.id || currentApprovalStatus === "accepted"}
+                                onClick={() => handleUpdateStatus(order, "accepted", "Order accepted.")}
+                                disabled={isUpdatingThisRow || order.status === "accepted"}
                               >
                                 Accept
                               </Button>
@@ -1034,24 +1307,40 @@ export default function AdminDashboard() {
                                 size="small"
                                 variant="outlined"
                                 color="error"
-                                onClick={() => handleApprovalStatus(order, "rejected")}
-                                disabled={updatingApprovalOrderId === order.id || currentApprovalStatus === "rejected"}
+                                onClick={() => handleUpdateStatus(order, "rejected", "Order rejected.")}
+                                disabled={isUpdatingThisRow || order.status === "rejected"}
                               >
                                 Reject
                               </Button>
 
-                              {nextStatus ? (
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  onClick={() => handleAdvanceStatus(order)}
-                                  disabled={updatingOrderId === order.id}
-                                >
-                                  Mark {formatStatusLabel(nextStatus)}
-                                </Button>
-                              ) : (
-                                <Chip label="Done" size="small" color="success" />
-                              )}
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="info"
+                                onClick={() => handleUpdateStatus(order, "stitching", "Order moved to stitching.")}
+                                disabled={isUpdatingThisRow || order.status === "stitching"}
+                              >
+                                Start Work
+                              </Button>
+
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="secondary"
+                                onClick={() => handleUpdateStatus(order, "ready", "Order marked ready.")}
+                                disabled={isUpdatingThisRow || order.status === "ready"}
+                              >
+                                Mark Ready
+                              </Button>
+
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() => handleUpdateStatus(order, "delivered", "Order marked delivered.")}
+                                disabled={isUpdatingThisRow || order.status === "delivered" || order.status === "done"}
+                              >
+                                Mark Delivered
+                              </Button>
                             </Stack>
                           </TableCell>
                         </TableRow>
@@ -1060,7 +1349,7 @@ export default function AdminDashboard() {
 
                     {filteredOrders.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9}>No orders found for selected filters.</TableCell>
+                        <TableCell colSpan={7}>No orders found for selected filters.</TableCell>
                       </TableRow>
                     ) : null}
                   </TableBody>

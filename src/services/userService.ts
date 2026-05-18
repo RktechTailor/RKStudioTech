@@ -18,6 +18,8 @@ type SaveUserInput = {
   name?: string;
   phone?: string;
   role?: UserRole;
+  address?: string;
+  measurements?: Record<string, string | number>;
   savedFabricIds?: string[];
 };
 
@@ -26,11 +28,13 @@ export type AppUser = {
   name: string;
   phone: string;
   role: UserRole;
+  address?: string;
+  measurements?: Record<string, string | number>;
   savedFabricIds?: string[];
   createdAt: Timestamp | null;
 };
 
-export const saveUserToFirestore = async ({ uid, name, phone, role, savedFabricIds }: SaveUserInput) => {
+export const saveUserToFirestore = async ({ uid, name, phone, role, address, measurements, savedFabricIds }: SaveUserInput) => {
   const db = getFirebaseDb();
 
   if (!db) {
@@ -51,6 +55,14 @@ export const saveUserToFirestore = async ({ uid, name, phone, role, savedFabricI
 
   if (typeof role !== "undefined") {
     payload.role = role;
+  }
+
+  if (typeof address !== "undefined") {
+    payload.address = address;
+  }
+
+  if (typeof measurements !== "undefined") {
+    payload.measurements = measurements;
   }
 
   if (typeof savedFabricIds !== "undefined") {
@@ -91,6 +103,11 @@ export const subscribeToUser = (
         name: data.name || "-",
         phone: data.phone || "-",
         role: (data.role || "user") as UserRole,
+        address: typeof data.address === "string" ? data.address : "",
+        measurements:
+          data.measurements && typeof data.measurements === "object"
+            ? data.measurements as Record<string, string | number>
+            : {},
         savedFabricIds: Array.isArray(data.savedFabricIds) ? data.savedFabricIds : [],
         createdAt: data.createdAt || null,
       });
@@ -125,6 +142,11 @@ export const subscribeToAllUsers = (
           name: data.name || "-",
           phone: data.phone || "-",
           role: (data.role || "user") as UserRole,
+          address: typeof data.address === "string" ? data.address : "",
+          measurements:
+            data.measurements && typeof data.measurements === "object"
+              ? data.measurements as Record<string, string | number>
+              : {},
           savedFabricIds: Array.isArray(data.savedFabricIds) ? data.savedFabricIds : [],
           createdAt: data.createdAt || null,
         };

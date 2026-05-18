@@ -17,10 +17,32 @@ import { getFirebaseDb } from "@/services/firebase";
 import { PricingType } from "@/utils/pricing";
 
 export type OrderServiceType = "tailoring" | "fabric" | "dupatta";
-export type OrderStatus = "pending" | "in progress" | "done" | "in_progress";
+export type OrderStatus = "pending" | "accepted" | "rejected" | "stitching" | "ready" | "delivered" | "in progress" | "done" | "in_progress";
 export type OrderApprovalStatus = "pending" | "accepted" | "rejected";
 export type PaymentStatus = "pending" | "partial" | "paid";
 export type PaymentType = "advance" | "full";
+
+export const ORDER_TIMELINE_STEPS: Array<"pending" | "accepted" | "stitching" | "ready" | "delivered"> = [
+  "pending",
+  "accepted",
+  "stitching",
+  "ready",
+  "delivered",
+];
+
+export const normalizePhone = (phone?: string | null) => (phone || "").replace(/\D/g, "");
+
+export const normalizeOrderStatus = (status: OrderStatus): Exclude<OrderStatus, "in progress" | "in_progress" | "done"> => {
+  if (status === "in_progress" || status === "in progress") {
+    return "stitching";
+  }
+
+  if (status === "done") {
+    return "delivered";
+  }
+
+  return status;
+};
 
 export type OrderPricingSnapshot = {
   pricingType: PricingType;
@@ -49,8 +71,10 @@ export interface OrderDetails {
 
 export type UserOrder = {
   id: string;
+  orderCode?: string | null;
   userId: string;
   phone?: string | null;
+  normalizedPhone?: string | null;
   items?: string[];
   total?: number | null;
   service: OrderServiceType;
@@ -191,6 +215,7 @@ export const subscribeToAllOrders = (
 
         return {
           id: orderDoc.id,
+          orderCode: data.orderCode || null,
           userId: data.userId,
           service: data.service,
           productId: data.productId || null,
@@ -242,6 +267,7 @@ export const fetchAllOrders = async (): Promise<UserOrder[]> => {
 
       return {
         id: orderDoc.id,
+        orderCode: data.orderCode || null,
         userId: data.userId,
         service: data.service,
         productId: data.productId || null,
@@ -286,13 +312,36 @@ export const fetchAllOrders = async (): Promise<UserOrder[]> => {
   }
 };
 
+export const getOrderStatusMessage = (status: OrderStatus) => {
+  const normalized = normalizeOrderStatus(status);
+
+  if (normalized === "pending") return "Waiting for approval";
+  if (normalized === "accepted") return "Order confirmed";
+  if (normalized === "stitching") return "Work in progress";
+  if (normalized === "ready") return "Ready for pickup";
+  if (normalized === "delivered") return "Completed";
+  if (normalized === "rejected") return "Order rejected";
+
+  return "Status updated";
+};
+
 export const getNextOrderStatus = (status: OrderStatus): OrderStatus | null => {
-  if (status === "pending") {
-    return "in progress";
+  const normalized = normalizeOrderStatus(status);
+
+  if (normalized === "pending") {
+    return "accepted";
   }
 
-  if (status === "in_progress" || status === "in progress") {
-    return "done";
+  if (normalized === "accepted") {
+    return "stitching";
+  }
+
+  if (normalized === "stitching") {
+    return "ready";
+  }
+
+  if (normalized === "ready") {
+    return "delivered";
   }
 
   return null;
@@ -310,6 +359,24 @@ export const updateOrderStatus = async (
     throw new Error("Firebase is not configured.");
   }
 
+  if (!orderId.trim()) {
+    throw new Error("Order id is required.");
+  }
+
+  const normalized = normalizeOrderStatus(status);
+  const allowedStatuses: Array<ReturnType<typeof normalizeOrderStatus>> = [
+    "pending",
+    "accepted",
+    "rejected",
+    "stitching",
+    "ready",
+    "delivered",
+  ];
+
+  if (!allowedStatuses.includes(normalized)) {
+    throw new Error("Invalid order status.");
+  }
+
   await updateDoc(doc(db, "orders", orderId), {
     status,
     statusHistory: arrayUnion({
@@ -319,6 +386,8 @@ export const updateOrderStatus = async (
       updatedBy: updatedBy || "admin",
     }),
   });
+
+  console.log("STATUS UPDATED:", status);
 };
 
 export const updateOrderApprovalStatus = async (
@@ -398,6 +467,7 @@ export const subscribeToUserOrders = (
 
         return {
           id: doc.id,
+          orderCode: data.orderCode || null,
           userId: data.userId,
           service: data.service,
           productId: data.productId || null,
@@ -419,6 +489,78 @@ export const subscribeToUserOrders = (
           status: (data.status || "pending") as OrderStatus,
           approvalStatus: (data.approvalStatus || "pending") as OrderApprovalStatus,
           phone: data.phone || null,
+          items: Array.isArray(data.items) ? data.items as string[] : [],
+          total: typeof data.total === "number" ? data.total : null,
+          statusHistory: (data.statusHistory || []) as OrderHistoryItem[],
+          assignedTo: data.assignedTo || null,
+          createdAt: data.createdAt || null,
+        };
+      });
+
+      onOrders(orders);
+    },
+    (error) => {
+      onError?.(error as Error);
+    },
+  );
+};
+
+export const subscribeToOrdersByPhone = (
+  phone: string,
+  onOrders: (orders: UserOrder[]) => void,
+  onError?: (error: Error) => void,
+) => {
+  const db = getFirebaseDb();
+
+  if (!db) {
+    onOrders([]);
+    return () => undefined;
+  }
+
+  const normalizedPhone = normalizePhone(phone).slice(-10);
+
+  if (!normalizedPhone) {
+    onOrders([]);
+    return () => undefined;
+  }
+
+  const ordersQuery = query(
+    collection(db, "orders"),
+    where("normalizedPhone", "==", normalizedPhone),
+    orderBy("createdAt", "desc"),
+  );
+
+  return onSnapshot(
+    ordersQuery,
+    (snapshot) => {
+      const orders: UserOrder[] = snapshot.docs.map((orderDoc) => {
+        const data = orderDoc.data() as Omit<UserOrder, "id">;
+
+        return {
+          id: orderDoc.id,
+          orderCode: data.orderCode || null,
+          userId: data.userId,
+          service: data.service,
+          productId: data.productId || null,
+          orderDetails: data.orderDetails || {},
+          paymentStatus: (data.paymentStatus || "pending") as PaymentStatus,
+          paymentType: (data.paymentType || null) as PaymentType | null,
+          amountPaid: typeof data.amountPaid === "number" ? data.amountPaid : null,
+          advanceAmount: typeof data.advanceAmount === "number" ? data.advanceAmount : null,
+          remainingAmount: typeof data.remainingAmount === "number" ? data.remainingAmount : null,
+          finalPrice: typeof data.finalPrice === "number" ? data.finalPrice : null,
+          finalPayable: typeof data.finalPayable === "number" ? data.finalPayable : null,
+          totalPrice: typeof data.totalPrice === "number" ? data.totalPrice : null,
+          marketPrice: typeof data.marketPrice === "number" ? data.marketPrice : null,
+          discountPercentage: typeof data.discountPercentage === "number" ? data.discountPercentage : null,
+          discountAmount: typeof data.discountAmount === "number" ? data.discountAmount : null,
+          pricingType: (data.pricingType || null) as PricingType | null,
+          quantityOrMeter: typeof data.quantityOrMeter === "number" ? data.quantityOrMeter : null,
+          paymentId: data.paymentId || null,
+          status: (data.status || "pending") as OrderStatus,
+          approvalStatus: (data.approvalStatus || "pending") as OrderApprovalStatus,
+          phone: data.phone || null,
+          normalizedPhone: data.normalizedPhone || null,
           items: Array.isArray(data.items) ? data.items as string[] : [],
           total: typeof data.total === "number" ? data.total : null,
           statusHistory: (data.statusHistory || []) as OrderHistoryItem[],

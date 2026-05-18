@@ -1,14 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchAllOrders, subscribeToAllOrders, subscribeToUserOrders, UserOrder } from "@/services/orderService";
+import {
+  fetchAllOrders,
+  subscribeToAllOrders,
+  subscribeToOrdersByPhone,
+  subscribeToUserOrders,
+  UserOrder,
+} from "@/services/orderService";
 
 type UseOrdersParams = {
-  mode: "user" | "all";
+  mode: "user" | "all" | "phone";
   userId?: string;
+  phone?: string;
 };
 
-export const useOrders = ({ mode, userId }: UseOrdersParams) => {
+export const useOrders = ({ mode, userId, phone }: UseOrdersParams) => {
   const [orders, setOrders] = useState<UserOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -17,6 +24,12 @@ export const useOrders = ({ mode, userId }: UseOrdersParams) => {
     setError("");
 
     if (mode === "user" && !userId) {
+      setOrders([]);
+      setLoading(false);
+      return;
+    }
+
+    if (mode === "phone" && !phone) {
       setOrders([]);
       setLoading(false);
       return;
@@ -37,6 +50,19 @@ export const useOrders = ({ mode, userId }: UseOrdersParams) => {
               setLoading(false);
             },
           )
+        : mode === "phone"
+          ? subscribeToOrdersByPhone(
+              phone as string,
+              (nextOrders) => {
+                setError("");
+                setOrders(nextOrders);
+                setLoading(false);
+              },
+              () => {
+                setError("Could not fetch orders.");
+                setLoading(false);
+              },
+            )
         : subscribeToAllOrders(
             (nextOrders) => {
               setError("");
@@ -57,7 +83,7 @@ export const useOrders = ({ mode, userId }: UseOrdersParams) => {
           );
 
     return () => unsubscribe();
-  }, [mode, userId]);
+  }, [mode, userId, phone]);
 
   return {
     orders,

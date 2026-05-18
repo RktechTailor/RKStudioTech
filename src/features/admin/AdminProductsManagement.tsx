@@ -42,6 +42,7 @@ import {
   CatalogProduct,
   ProductCategory,
   removeProduct,
+  setProductActiveState,
   uploadProductImage,
   updateProduct,
 } from "@/services/productService";
@@ -59,6 +60,7 @@ type FormState = {
   category: ProductCategory;
   image: string;
   tag: string;
+  isActive: "true" | "false";
   description: string;
   discountPercent: string;
   rating: string;
@@ -77,6 +79,7 @@ const initialForm: FormState = {
   category: "fabric",
   image: "",
   tag: "daily wear",
+  isActive: "true",
   description: "",
   discountPercent: "0",
   rating: "4.5",
@@ -351,6 +354,7 @@ export default function AdminProductsManagement() {
         category: form.category,
         image: form.image.trim(),
         tag: form.tag.trim(),
+        isActive: form.isActive === "true",
         description: form.description.trim(),
         discountPercent: Number(form.discountPercent),
         rating: Number(form.rating),
@@ -457,6 +461,7 @@ export default function AdminProductsManagement() {
       category: product.category,
       image: product.image,
       tag: product.tag,
+      isActive: product.isActive === false ? "false" : "true",
       description: product.description || "",
       discountPercent: String(product.discountPercent || 0),
       rating: String(product.rating || 4.5),
@@ -485,6 +490,18 @@ export default function AdminProductsManagement() {
       }
     } catch {
       setError("Could not delete product.");
+    }
+  };
+
+  const handleToggleActive = async (product: CatalogProduct) => {
+    setError("");
+
+    try {
+      await trackAsync(setProductActiveState(product.id, product.isActive === false));
+      setNotice(product.isActive === false ? "Product activated." : "Product deactivated.");
+    } catch (toggleError) {
+      console.error(toggleError);
+      setError("Could not update product visibility.");
     }
   };
 
@@ -646,6 +663,10 @@ export default function AdminProductsManagement() {
                   <MenuItem value="fabric">Fabric</MenuItem>
                   <MenuItem value="dupatta">Dupatta</MenuItem>
                 </TextField>
+                <TextField select label="Visibility" value={form.isActive} onChange={(e) => setField("isActive", e.target.value)} fullWidth>
+                  <MenuItem value="true">Active</MenuItem>
+                  <MenuItem value="false">Inactive</MenuItem>
+                </TextField>
               </Stack>
 
               <TextField
@@ -803,6 +824,7 @@ export default function AdminProductsManagement() {
                           <Typography variant="body2" color="text.secondary">
                             {product.category} | {product.type}
                           </Typography>
+                          <Chip size="small" color={product.isActive === false ? "default" : "success"} label={product.isActive === false ? "Inactive" : "Active"} />
                           <Typography variant="body2" color="text.secondary">
                             Chhut: {product.discountPercent || 0}% | Rating: {(product.rating || 0).toFixed(1)}
                           </Typography>
@@ -857,6 +879,7 @@ export default function AdminProductsManagement() {
                       <TableCell>Type</TableCell>
                       <TableCell>Category</TableCell>
                       <TableCell>Label</TableCell>
+                      <TableCell>Visibility</TableCell>
                       <TableCell>Actions</TableCell>
                     </TableRow>
                   </TableHead>
@@ -876,8 +899,18 @@ export default function AdminProductsManagement() {
                         <TableCell sx={{ textTransform: "capitalize" }}>{product.category}</TableCell>
                         <TableCell>{product.tag}</TableCell>
                         <TableCell>
+                          <Chip
+                            size="small"
+                            color={product.isActive === false ? "default" : "success"}
+                            label={product.isActive === false ? "Inactive" : "Active"}
+                          />
+                        </TableCell>
+                        <TableCell>
                           <Stack direction="row" spacing={1}>
                             <Button size="small" variant="outlined" onClick={() => handleEdit(product)}>Edit</Button>
+                            <Button size="small" variant="outlined" onClick={() => handleToggleActive(product)}>
+                              {product.isActive === false ? "Activate" : "Deactivate"}
+                            </Button>
                             <Button size="small" color="error" onClick={() => handleDelete(product.id)}>Delete</Button>
                           </Stack>
                         </TableCell>
@@ -886,7 +919,7 @@ export default function AdminProductsManagement() {
 
                     {!loading && products.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={13}>No products found.</TableCell>
+                        <TableCell colSpan={14}>No products found.</TableCell>
                       </TableRow>
                     ) : null}
                   </TableBody>

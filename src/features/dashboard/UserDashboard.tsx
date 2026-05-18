@@ -38,7 +38,32 @@ const formatOrderDate = (order: UserOrder) => {
 };
 
 const formatStatus = (status: OrderStatus) => {
+  if (status === "in_progress" || status === "in progress") {
+    return "Stitching";
+  }
+
+  if (status === "done") {
+    return "Delivered";
+  }
+
+  if (status === "pending") return "Pending";
+  if (status === "accepted") return "Accepted";
+  if (status === "rejected") return "Rejected";
+  if (status === "stitching") return "Stitching";
+  if (status === "ready") return "Ready";
+  if (status === "delivered") return "Delivered";
+
   return status;
+};
+
+const getStatusChipColor = (status: OrderStatus) => {
+  if (status === "pending") return "warning" as const;
+  if (status === "accepted") return "success" as const;
+  if (status === "rejected") return "error" as const;
+  if (status === "stitching" || status === "in progress" || status === "in_progress") return "info" as const;
+  if (status === "ready") return "secondary" as const;
+  if (status === "delivered" || status === "done") return "default" as const;
+  return "default" as const;
 };
 
 const formatHistoryDate = (history: OrderHistoryItem) => {
@@ -146,6 +171,14 @@ export default function UserDashboard() {
               Login phone: <strong>{user?.phoneNumber || "-"}</strong>
             </Typography>
             <Typography color="text.secondary">Serving Narnaul (123001) | Home visit service available</Typography>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+              <Button component={Link} href="/my-orders" variant="contained">
+                Open Full Order Tracking
+              </Button>
+              <Button component={Link} href="/profile" variant="outlined">
+                Update Profile
+              </Button>
+            </Stack>
           </Stack>
         </CardContent>
       </Card>
@@ -265,7 +298,7 @@ export default function UserDashboard() {
                       <TableRow key={order.id}>
                         <TableCell sx={{ textTransform: "capitalize" }}>{order.service}</TableCell>
                         <TableCell>
-                          <Chip label={formatStatus(order.status)} color={order.status === "done" ? "success" : "warning"} size="small" />
+                          <Chip label={formatStatus(order.status)} color={getStatusChipColor(order.status)} size="small" />
                         </TableCell>
                         <TableCell>{formatOrderDate(order)}</TableCell>
                         <TableCell>

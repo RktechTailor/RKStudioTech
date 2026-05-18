@@ -21,6 +21,11 @@ type UserApprovalWhatsAppInput = {
   status: ApprovalStatus;
 };
 
+type UserOrderStatusWhatsAppInput = {
+  phone: string;
+  status: "accepted" | "rejected" | "stitching" | "ready" | "delivered";
+};
+
 const WHATSAPP_NUMBER = RK_STUDIO.whatsappNumber;
 
 const buildOrderMessage = ({ name, phone, service, details }: SendToWhatsAppInput) => {
@@ -113,6 +118,42 @@ export const buildUserOrderDecisionWhatsAppUrl = (input: UserApprovalWhatsAppInp
 
   if (input.status === "rejected") {
     message = "Your order has been declined. Please contact support for details.";
+  }
+
+  if (!message) {
+    return "";
+  }
+
+  return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
+};
+
+export const buildUserOrderStatusWhatsAppUrl = (input: UserOrderStatusWhatsAppInput) => {
+  const normalizedPhone = sanitizePhone(input.phone);
+
+  if (!normalizedPhone) {
+    return "";
+  }
+
+  let message = "";
+
+  if (input.status === "accepted") {
+    message = "Your order has been accepted.";
+  }
+
+  if (input.status === "rejected") {
+    message = "Your order has been rejected. Please contact support for details.";
+  }
+
+  if (input.status === "stitching") {
+    message = "Good news: your order is now in stitching.";
+  }
+
+  if (input.status === "ready") {
+    message = "Your order is ready for delivery/pickup.";
+  }
+
+  if (input.status === "delivered") {
+    message = "Your order has been marked delivered. Thank you for choosing RK Studio.";
   }
 
   if (!message) {
