@@ -34,7 +34,6 @@ export default function CheckoutPage() {
   const [upiReference, setUpiReference] = useState("");
   const [upiStarted, setUpiStarted] = useState(false);
   const [pendingOrder, setPendingOrder] = useState<ReturnType<typeof readPendingPaymentOrder>>(null);
-  const [whatsappUrl, setWhatsappUrl] = useState("");
   const [orderConfirmed, setOrderConfirmed] = useState(false);
   const [razorpayEnabled, setRazorpayEnabled] = useState(false);
   const [paymentConfigLoading, setPaymentConfigLoading] = useState(true);
@@ -53,12 +52,7 @@ export default function CheckoutPage() {
     }
 
     console.info("[checkout] opening external link", { source, url });
-
-    const popup = window.open(url, "_blank", "noopener,noreferrer");
-
-    if (!popup) {
-      window.location.href = url;
-    }
+    window.location.href = url;
   };
 
     useEffect(() => {
@@ -435,8 +429,7 @@ export default function CheckoutPage() {
       return;
     }
 
-    setWhatsappUrl(url);
-    window.open(url, "_blank", "noopener,noreferrer");
+    window.location.href = url;
   };
 
   const handlePayAndConfirm = async () => {
@@ -746,13 +739,9 @@ export default function CheckoutPage() {
                 >
                   Continue via WhatsApp Payment
                 </Button>
-                {success && whatsappUrl ? (
-                  <Button
-                    variant="outlined"
-                    color="success"
-                    onClick={() => openExternalLink(whatsappUrl, "open-whatsapp-again")}
-                  >
-                    Open WhatsApp Again
+                {success ? (
+                  <Button variant="outlined" color="success" disabled>
+                    WhatsApp link sent automatically
                   </Button>
                 ) : null}
               </Stack>
