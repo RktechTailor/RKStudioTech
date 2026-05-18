@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
+import { getAdminAuth, getAdminDb } from "@/lib/firebaseAdmin";
 import { getProductById } from "@/services/productService";
-import { getFirebaseAdminAuth, getFirebaseAdminDb } from "@/utils/server/firebaseAdmin";
 import {
   calculatePricingBreakdown,
   calculatePricingForLineItems,
@@ -35,7 +35,7 @@ const finalizeSchema = z.object({
 });
 
 const verifyRequestUser = async (request: NextRequest) => {
-  const authHeader = request.headers.get("Authorization");
+  const authHeader = request.headers.get("authorization") || request.headers.get("Authorization");
 
   if (!authHeader?.startsWith("Bearer ")) {
     return null;
@@ -60,7 +60,7 @@ const verifyRequestUser = async (request: NextRequest) => {
     };
   }
 
-  const decoded = await getFirebaseAdminAuth().verifyIdToken(token);
+  const decoded = await getAdminAuth().verifyIdToken(token);
 
   return {
     uid: decoded.uid,
@@ -188,7 +188,7 @@ const createSafeOrder = async (
     service?: string;
   },
 ) => {
-  const db = getFirebaseAdminDb();
+  const db = getAdminDb();
   const orderRef = db.collection("orders").doc();
   const businessOrderId = buildBusinessOrderId();
   const normalizedPhone = normalizePhone(payload.phone);
@@ -237,7 +237,7 @@ const createSafeOrder = async (
     statusHistory: [
       {
         status: "pending",
-        updatedAt: FieldValue.serverTimestamp(),
+        updatedAt: new Date(),
         note: "Order created",
       },
     ],
@@ -297,6 +297,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const resolvedUserId = requester.role === "admin"
+      ? input.userId
+      : requester.uid;
+
     const normalizedPhone = normalizePhone(input.customerPhone);
 
     if (!normalizedPhone) {
@@ -331,7 +335,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getFirebaseAdminDb();
+    const db = getAdminDb();
     const orderRef = db.collection("orders").doc();
     const paymentRef = db.collection("payment_records").doc(input.paymentId);
     const businessOrderId = buildBusinessOrderId();
@@ -357,7 +361,7 @@ export async function POST(request: NextRequest) {
       transaction.set(orderRef, {
         id: orderRef.id,
         orderCode: businessOrderId,
-        userId: input.userId,
+          userId: resolvedUserId,
         phone: input.customerPhone || null,
         normalizedPhone,
         items: input.items || [],
@@ -399,7 +403,7 @@ export async function POST(request: NextRequest) {
         statusHistory: [
           {
             status: "pending",
-            updatedAt: FieldValue.serverTimestamp(),
+              updatedAt: new Date(),
             note: "Order created",
           },
         ],
@@ -411,7 +415,7 @@ export async function POST(request: NextRequest) {
     console.info("[orders] finalize_success", {
       orderId: orderRef.id,
       businessOrderId,
-      userId: input.userId,
+      userId: resolvedUserId,
       service: input.service,
       amountPaid: input.amountPaid,
       paymentType: input.paymentType,

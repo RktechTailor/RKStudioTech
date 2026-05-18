@@ -12,6 +12,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
+import { getAuth } from "firebase/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Layout from "@/components/layout/Layout";
@@ -19,7 +20,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getFirebaseAuth } from "@/services/firebase";
 import { OrderDetails } from "@/services/orderService";
 import { AppUser, subscribeToUser } from "@/services/userService";
-import { removeFabricCartItem, removeFabricCartItems } from "@/utils/fabricCart";
+import { readFabricCart, removeFabricCartItem, removeFabricCartItems } from "@/utils/fabricCart";
 import { clearPendingPaymentOrder, readPendingPaymentOrder } from "@/utils/paymentSession";
 import { PricingBreakdown, calculatePricingBreakdown } from "@/utils/pricing";
 import { buildWhatsAppChatUrl, formatPhone } from "@/utils/whatsapp";
@@ -43,6 +44,86 @@ type PricingApiResponse = {
   pricingBreakdown?: PricingBreakdown;
   error?: string;
   fallback?: boolean;
+};
+
+const PAYMENT_STORAGE_PREFIX = "rkstudio_pending_payment_";
+
+const cleanupStalePaymentStorage = (currentToken: string) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem("payment-session");
+
+  const activeStorageKeys: string[] = [];
+
+  for (let index = 0; index < window.sessionStorage.length; index += 1) {
+    const key = window.sessionStorage.key(index);
+
+    if (key) {
+      activeStorageKeys.push(key);
+    }
+  }
+
+  for (const key of activeStorageKeys) {
+    if (!key.startsWith(PAYMENT_STORAGE_PREFIX)) {
+      continue;
+    }
+
+    if (key === `${PAYMENT_STORAGE_PREFIX}${currentToken}`) {
+      continue;
+    }
+
+    window.sessionStorage.removeItem(key);
+    window.localStorage.removeItem(key);
+  }
+};
+
+const resolveCheckoutProduct = (
+  pendingOrder: NonNullable<ReturnType<typeof readPendingPaymentOrder>>,
+) => {
+  const cartItems = readFabricCart();
+  const cartItemId = typeof pendingOrder.orderDetails?.cart_item_id === "string"
+    ? pendingOrder.orderDetails.cart_item_id
+    : "";
+
+  const selectedFromCartId = cartItemId
+    ? cartItems.find((item) => item.id === cartItemId)
+    : undefined;
+  const selectedFromPendingProductId = cartItems.find((item) =>
+    item.productId === pendingOrder.pricingInput?.productId
+    || item.productId === pendingOrder.productId,
+  );
+
+  const selectedProduct = selectedFromCartId || selectedFromPendingProductId || cartItems[0] || null;
+
+  return {
+    selectedProduct,
+    cartItems,
+  };
+};
+
+const resolveCheckoutLineItems = (
+  pendingOrder: NonNullable<ReturnType<typeof readPendingPaymentOrder>>,
+  cartItems: ReturnType<typeof readFabricCart>,
+) => {
+  const cartItemIds = Array.isArray(pendingOrder.orderDetails?.cart_item_ids)
+    ? pendingOrder.orderDetails.cart_item_ids.filter((value): value is string => typeof value === "string")
+    : [];
+
+  if (!cartItemIds.length) {
+    return pendingOrder.pricingInput?.lineItems;
+  }
+
+  const lineItems = cartItemIds
+    .map((cartItemId) => cartItems.find((cartItem) => cartItem.id === cartItemId))
+    .filter((cartItem): cartItem is NonNullable<typeof cartItem> => Boolean(cartItem))
+    .map((cartItem) => ({
+      productId: cartItem.productId,
+      quantityOrMeter: cartItem.selected_quantity,
+    }));
+
+  return lineItems.length ? lineItems : pendingOrder.pricingInput?.lineItems;
 };
 
 const toSafePricingBreakdown = (
@@ -94,6 +175,15 @@ export default function CheckoutPage() {
   const supportUrl = buildWhatsAppChatUrl(supportPhone, "Hi, I need help with my order");
 
   useEffect(() => {
+    if (!user) {
+      const currentUrl = `${window.location.pathname}${window.location.search}`;
+      router.push(`/login?next=${encodeURIComponent(currentUrl)}`);
+    }
+  }, [user, router]);
+
+  useEffect(() => {
+    cleanupStalePaymentStorage(token);
+
     if (!token) {
       setError("Order session not found. Please start your order again.");
       setLoading(false);
@@ -131,15 +221,31 @@ export default function CheckoutPage() {
         const dropCharge = typeof pendingOrder.orderDetails?.drop_charge === "number"
           ? Math.max(0, pendingOrder.orderDetails.drop_charge)
           : 0;
-        const product = (pendingOrder.pricingInput?.productId || pendingOrder.productId)
+        const { selectedProduct, cartItems } = resolveCheckoutProduct(pendingOrder);
+        const selectedProductId = pendingOrder.service === "tailoring"
+          ? pendingOrder.pricingInput?.productId || pendingOrder.productId || ""
+          : selectedProduct?.productId || "";
+        const selectedProductPayload = selectedProductId
           ? {
-            id: pendingOrder.pricingInput?.productId || pendingOrder.productId,
+            id: selectedProductId,
             pricingType: pendingOrder.pricingInput?.pricingType
+              || selectedProduct?.pricing_type
               || (pendingOrder.service === "fabric" ? "meter" : "piece"),
+            name: selectedProduct?.name,
+            category: selectedProduct?.category,
+            cartItemId: selectedProduct?.id,
           }
           : null;
 
-        console.log("CHECKOUT PRODUCT:", product);
+        console.log("CHECKOUT PRODUCT FULL:", selectedProductPayload);
+        console.log("CHECKOUT PRODUCT ID:", selectedProductPayload?.id);
+
+        if ((pendingOrder.service === "fabric" || pendingOrder.service === "dupatta") && !selectedProductPayload?.id) {
+          clearPendingPaymentOrder(token);
+          throw new Error("Product ID missing in checkout");
+        }
+
+        const lineItems = resolveCheckoutLineItems(pendingOrder, cartItems);
 
         const response = await fetch("/api/pricing/calculate", {
           method: "POST",
@@ -147,13 +253,13 @@ export default function CheckoutPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            productId: product?.id,
+            productId: selectedProductPayload?.id,
             paymentType: pendingOrder.paymentType,
-            pricingType: pendingOrder.pricingInput?.pricingType,
-            quantityOrMeter: pendingOrder.pricingInput?.quantityOrMeter,
+            pricingType: selectedProductPayload?.pricingType,
+            quantityOrMeter: selectedProduct?.selected_quantity ?? pendingOrder.pricingInput?.quantityOrMeter,
             pickupCharge: pendingOrder.pricingInput?.pickupCharge ?? pickupCharge,
             dropCharge: pendingOrder.pricingInput?.dropCharge ?? dropCharge,
-            lineItems: pendingOrder.pricingInput?.lineItems,
+            lineItems,
           }),
         });
 
@@ -266,27 +372,44 @@ export default function CheckoutPage() {
       : pricingBreakdown.finalPayable;
   }, [pendingOrder, pricingBreakdown]);
 
-  const getAuthHeaders = async (): Promise<Record<string, string>> => {
+  const getAuthContext = async (): Promise<{ headers: Record<string, string>; uid: string }> => {
     if (user?.provider === "mock") {
       return {
-        Authorization: `Bearer mock:${user.uid}:${user.role || "user"}`,
+        headers: {
+          Authorization: `Bearer mock:${user.uid}:${user.role || "user"}`,
+        },
+        uid: user.uid,
       };
     }
 
-    const auth = getFirebaseAuth();
-    const tokenValue = await auth?.currentUser?.getIdToken();
+    const auth = getFirebaseAuth() || getAuth();
+    const currentUser = auth?.currentUser;
+
+    if (!currentUser) {
+      throw new Error("User not logged in");
+    }
+
+    const tokenValue = await currentUser.getIdToken();
 
     if (!tokenValue) {
-      return {};
+      throw new Error("User token unavailable");
     }
 
     return {
-      Authorization: `Bearer ${tokenValue}`,
+      headers: {
+        Authorization: `Bearer ${tokenValue}`,
+      },
+      uid: currentUser.uid,
     };
   };
 
   const handlePlaceOrder = async () => {
     if (submitting || submitLockRef.current) {
+      return;
+    }
+
+    if (!user) {
+      setError("Please login to place order");
       return;
     }
 
@@ -346,26 +469,41 @@ export default function CheckoutPage() {
         .filter((line) => /fabric|dupatta|item|design|type/i.test(line))
         .slice(0, 5);
 
-      const product = (pendingOrder.pricingInput?.productId || pendingOrder.productId)
+      const { selectedProduct } = resolveCheckoutProduct(pendingOrder);
+      const product = (pendingOrder.service === "tailoring"
+        ? (pendingOrder.pricingInput?.productId || pendingOrder.productId)
+        : selectedProduct?.productId)
         ? {
-          id: pendingOrder.pricingInput?.productId || pendingOrder.productId,
+          id: pendingOrder.service === "tailoring"
+            ? (pendingOrder.pricingInput?.productId || pendingOrder.productId)
+            : selectedProduct?.productId,
           pricingType: pendingOrder.pricingInput?.pricingType
+            || selectedProduct?.pricing_type
             || (pendingOrder.service === "fabric" ? "meter" : "piece"),
+          name: selectedProduct?.name,
+          category: selectedProduct?.category,
+          cartItemId: selectedProduct?.id,
         }
         : null;
 
-      console.log("CHECKOUT PRODUCT:", product);
+      console.log("CHECKOUT PRODUCT FULL:", product);
+      console.log("CHECKOUT PRODUCT ID:", product?.id);
+
+      if ((pendingOrder.service === "fabric" || pendingOrder.service === "dupatta") && !product?.id) {
+        throw new Error("Product ID missing in checkout");
+      }
 
       const paymentId = `order-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const authContext = await getAuthContext();
 
       const response = await fetch("/api/orders/finalize", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(await getAuthHeaders()),
+          ...authContext.headers,
         },
         body: JSON.stringify({
-          userId: pendingOrder.userId,
+          userId: authContext.uid,
           service: pendingOrder.service,
           phone: pendingOrder.customerPhone,
           customerPhone: pendingOrder.customerPhone,
@@ -425,6 +563,10 @@ export default function CheckoutPage() {
         </Stack>
       </Layout>
     );
+  }
+
+  if (!user) {
+    return <div>Please login to place order</div>;
   }
 
   return (
@@ -493,7 +635,7 @@ export default function CheckoutPage() {
                 <Button
                   variant="contained"
                   onClick={handlePlaceOrder}
-                  disabled={submitting || submitLockRef.current || !pendingOrder || !pricingBreakdown}
+                  disabled={!user || submitting || submitLockRef.current || !pendingOrder || !pricingBreakdown}
                   fullWidth
                   sx={{ minHeight: 44 }}
                 >

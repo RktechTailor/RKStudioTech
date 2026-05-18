@@ -67,12 +67,19 @@ export const addFabricItemToCart = (
     selected_quantity: number;
   },
 ) => {
+  const canonicalProductId = typeof item.productId === "string" ? item.productId.trim() : "";
+
+  if (!canonicalProductId) {
+    throw new Error("Invalid product id for cart item.");
+  }
+
   const quantity = sanitizeMeter(item.selected_quantity);
   const totalPrice = Math.round(item.price_per_unit * quantity);
 
   const nextItem: FabricCartItem = {
     ...item,
-    id: `${item.productId}-${Date.now()}`,
+    productId: canonicalProductId,
+    id: `${canonicalProductId}-${Date.now()}`,
     unit_label: item.product_type === "fabric" ? "meter" : "piece",
     pricing_type: item.product_type === "fabric" ? "meter" : "piece",
     market_price: item.market_price,

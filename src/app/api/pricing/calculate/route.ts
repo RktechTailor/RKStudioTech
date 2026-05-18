@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { doc, getDoc } from "firebase/firestore";
-import { getFirebaseDb } from "@/services/firebase";
+import { getAdminDb } from "@/lib/firebaseAdmin";
 import {
   calculatePricingBreakdown,
   calculatePricingForLineItems,
@@ -102,11 +101,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as PricingRequestInput;
     console.log("PRICING BODY:", body);
 
-    const db = getFirebaseDb();
-
-    if (!db) {
-      return NextResponse.json(buildFallbackResponse("db_unavailable"), { status: 200 });
-    }
+    const db = getAdminDb();
 
     const input: PricingRequestInput = {
       productId: typeof body.productId === "string" ? body.productId.trim() : undefined,
@@ -123,10 +118,10 @@ export async function POST(request: NextRequest) {
 
       for (const line of input.lineItems) {
         const lineProductId = line.productId.trim();
-        const ref = doc(db, "products", lineProductId);
-        const snap = await getDoc(ref);
+        const snap = await db.collection("products").doc(lineProductId).get();
+        console.log("DOC EXISTS:", snap.exists);
 
-        if (!snap.exists()) {
+        if (!snap.exists) {
           console.error("PRODUCT NOT FOUND:", lineProductId);
           return NextResponse.json(buildFallbackResponse("product_not_found"), { status: 200 });
         }
@@ -179,10 +174,10 @@ export async function POST(request: NextRequest) {
     }
 
     const productId = input.productId.trim();
-    const ref = doc(db, "products", productId);
-    const snap = await getDoc(ref);
+    const snap = await db.collection("products").doc(productId).get();
+    console.log("DOC EXISTS:", snap.exists);
 
-    if (!snap.exists()) {
+    if (!snap.exists) {
       console.error("PRODUCT NOT FOUND:", productId);
       return NextResponse.json(buildFallbackResponse("product_not_found"), { status: 200 });
     }

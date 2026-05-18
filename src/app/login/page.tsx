@@ -15,7 +15,7 @@ import {
 } from "@mui/material";
 import { FirebaseError } from "firebase/app";
 import { ConfirmationResult } from "firebase/auth";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Layout from "@/components/layout/Layout";
 import RKStudioLogo from "@/components/common/RKStudioLogo";
@@ -81,10 +81,20 @@ const mapVerifyOtpErrorMessage = (error: unknown) => {
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading, setMockSession } = useAuth();
   const { trackAsync } = useGlobalLoading();
   const [firebaseConfigured, setFirebaseConfigured] = useState<boolean | null>(null);
   const USE_MOCK_OTP = getEnvBool(process.env.NEXT_PUBLIC_USE_MOCK_OTP);
+  const nextParam = searchParams.get("next");
+
+  const getSafeNext = () => {
+    if (!nextParam) {
+      return null;
+    }
+
+    return nextParam.startsWith("/") ? nextParam : null;
+  };
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -103,9 +113,10 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace("/");
+      const safeNext = getSafeNext();
+      router.replace(safeNext || "/dashboard");
     }
-  }, [loading, router, user]);
+  }, [loading, router, user, nextParam]);
 
   useEffect(() => {
     setFirebaseConfigured(isFirebaseConfigured());
@@ -194,7 +205,8 @@ export default function LoginPage() {
         await trackAsync(verifyOtpAndSaveUser(confirmationResultRef.current as ConfirmationResult, otp, name, phone));
       }
 
-      router.replace(role === "admin" ? "/admin" : "/");
+      const safeNext = getSafeNext();
+      router.replace(safeNext || (role === "admin" ? "/admin" : "/dashboard"));
     } catch (verifyError) {
       setError(mapVerifyOtpErrorMessage(verifyError));
     } finally {
