@@ -125,6 +125,34 @@ export default function CheckoutPage() {
           return;
         }
 
+        if (pendingOrder.pricingBreakdown) {
+          const savedPricing = pendingOrder.pricingBreakdown;
+          const safeDiscountAmount = Math.max(0, Number(savedPricing.discountAmount || 0));
+
+          const fallbackFromSession: PricingBreakdown = {
+            marketPrice: Number(savedPricing.marketPrice || 0),
+            pricingType: savedPricing.pricingType,
+            pricePerUnit: Number(savedPricing.pricePerUnit || 0),
+            quantityOrMeter: Number(savedPricing.quantityOrMeter || 1),
+            totalPrice: Number(savedPricing.totalPrice || 0),
+            discountPercentage: Number(savedPricing.discountPercentage || 0),
+            discountAmount: safeDiscountAmount,
+            finalPrice: Number(savedPricing.finalPrice || 0),
+            pickupCharge: Number(savedPricing.pickupCharge || 0),
+            dropCharge: Number(savedPricing.dropCharge || 0),
+            pickupDropCharge: Number(savedPricing.pickupDropCharge || 0),
+            finalPayable: Number(savedPricing.finalPayable || 0),
+            advancePercentage: Number(savedPricing.advancePercentage || 20),
+            advanceAmount: Number(savedPricing.advanceAmount || 0),
+            remainingAmount: Number(savedPricing.remainingAmount || 0),
+            savingsText: `You saved INR ${safeDiscountAmount}`,
+          };
+
+          setPricingBreakdown(fallbackFromSession);
+          setPricingNotice("Live pricing is temporarily unavailable. Using saved checkout pricing.");
+          return;
+        }
+
         if (pendingOrder.service === "tailoring") {
           const fallbackBreakdown = calculatePricingBreakdown({
             marketPrice: 1000,
