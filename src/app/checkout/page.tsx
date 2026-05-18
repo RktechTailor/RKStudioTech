@@ -30,6 +30,44 @@ type FinalizeResponse = {
   error?: string;
 };
 
+type PricingApiResponse = {
+  total?: number;
+  breakdown?: Array<{
+    label: string;
+    amount: number;
+  }>;
+  pricingBreakdown?: PricingBreakdown;
+  error?: string;
+  fallbackUsed?: boolean;
+};
+
+const toSafePricingBreakdown = (
+  pendingOrder: NonNullable<ReturnType<typeof readPendingPaymentOrder>>,
+  total: number,
+): PricingBreakdown => {
+  const normalizedTotal = Math.max(0, Number(total) || 0);
+  const pricingType = pendingOrder.pricingInput?.pricingType
+    || (pendingOrder.service === "fabric" ? "meter" : "piece");
+  const quantityOrMeter = pendingOrder.pricingInput?.quantityOrMeter ?? 1;
+  const pickupCharge = typeof pendingOrder.orderDetails?.pickup_charge === "number"
+    ? Math.max(0, pendingOrder.orderDetails.pickup_charge)
+    : 0;
+  const dropCharge = typeof pendingOrder.orderDetails?.drop_charge === "number"
+    ? Math.max(0, pendingOrder.orderDetails.drop_charge)
+    : 0;
+
+  return calculatePricingBreakdown({
+    marketPrice: normalizedTotal,
+    pricingType,
+    pricePerUnit: normalizedTotal,
+    quantityOrMeter,
+    discountPercentage: 0,
+    advancePercentage: pendingOrder.paymentType === "advance" ? 20 : 100,
+    pickupCharge: pendingOrder.pricingInput?.pickupCharge ?? pickupCharge,
+    dropCharge: pendingOrder.pricingInput?.dropCharge ?? dropCharge,
+  });
+};
+
 export default function CheckoutPage() {
   const router = useRouter();
   const params = useSearchParams();
@@ -87,6 +125,19 @@ export default function CheckoutPage() {
         const dropCharge = typeof pendingOrder.orderDetails?.drop_charge === "number"
           ? Math.max(0, pendingOrder.orderDetails.drop_charge)
           : 0;
+        const selectedProductId = pendingOrder.pricingInput?.productId
+          || pendingOrder.productId
+          || (typeof pendingOrder.orderDetails?.productId === "string" ? pendingOrder.orderDetails.productId : "")
+          || undefined;
+        const selectedProduct = selectedProductId
+          ? {
+            id: selectedProductId,
+            pricingType: pendingOrder.pricingInput?.pricingType
+              || (pendingOrder.service === "fabric" ? "meter" : "piece"),
+          }
+          : null;
+
+        console.log("CHECKOUT PRODUCT:", selectedProduct);
 
         const response = await fetch("/api/pricing/calculate", {
           method: "POST",
@@ -94,31 +145,30 @@ export default function CheckoutPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            service: pendingOrder.service,
+            productId: selectedProduct?.id,
             paymentType: pendingOrder.paymentType,
-            productId: pendingOrder.pricingInput?.productId || pendingOrder.productId,
             pricingType: pendingOrder.pricingInput?.pricingType,
+            quantityOrMeter: pendingOrder.pricingInput?.quantityOrMeter,
             pickupCharge: pendingOrder.pricingInput?.pickupCharge ?? pickupCharge,
             dropCharge: pendingOrder.pricingInput?.dropCharge ?? dropCharge,
             lineItems: pendingOrder.pricingInput?.lineItems,
           }),
         });
 
-        const payload = (await response.json()) as {
-          breakdown?: PricingBreakdown;
-          error?: string;
-          fallbackUsed?: boolean;
-        };
+        const payload = (await response.json()) as PricingApiResponse;
+        const resolvedBreakdown = payload.pricingBreakdown
+          || (typeof payload.total === "number" ? toSafePricingBreakdown(pendingOrder, payload.total) : null);
 
-        if (!response.ok || !payload.breakdown) {
+        if (!response.ok || !resolvedBreakdown) {
           throw new Error(payload.error || "Unable to calculate pricing.");
         }
 
         if (!ignore) {
-          setPricingBreakdown(payload.breakdown);
+          setPricingBreakdown(resolvedBreakdown);
           setPricingNotice(payload.fallbackUsed
             ? "Pricing service was temporarily unavailable. Estimated quote is shown."
             : "");
+          setError("");
         }
       } catch (pricingError) {
         if (ignore) {

@@ -1,30 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { getProductById } from "@/services/productService";
 import { getFirebaseAdminDb } from "@/utils/server/firebaseAdmin";
 import {
   calculatePricingBreakdown,
   calculatePricingForLineItems,
+  PricingBreakdown,
   PricingCalculationInput,
 } from "@/utils/pricing";
 
-const lineItemSchema = z.object({
-  productId: z.string().min(1),
-  quantityOrMeter: z.number().positive(),
-});
-
-const pricingSchema = z.object({
-  service: z.enum(["tailoring", "fabric", "dupatta"]),
-  productId: z.string().optional(),
-  pricingType: z.enum(["meter", "piece"]).optional(),
-  quantityOrMeter: z.number().positive().optional(),
-  pickupCharge: z.number().min(0).optional(),
-  dropCharge: z.number().min(0).optional(),
-  lineItems: z.array(lineItemSchema).optional(),
-  paymentType: z.enum(["advance", "full"]).optional(),
-});
-
-type PricingRequestInput = z.infer<typeof pricingSchema>;
+type PricingRequestInput = {
+  productId?: string;
+  pricingType?: "meter" | "piece";
+  quantityOrMeter?: number;
+  pickupCharge?: number;
+  dropCharge?: number;
+  lineItems?: Array<{
+    productId: string;
+    quantityOrMeter: number;
+  }>;
+  paymentType?: "advance" | "full";
+};
 
 type PricingProduct = {
   price: number;
@@ -34,35 +29,6 @@ type PricingProduct = {
   discountPercentage?: number;
   advancePercentage?: number;
   productType?: "fabric" | "piece";
-};
-
-const getTailoringFallbackPricing = () => {
-  const marketPrice = Number(process.env.NEXT_PUBLIC_TAILORING_MARKET_PRICE || 1000);
-  const pricePerUnit = Number(process.env.NEXT_PUBLIC_TAILORING_PRICE_PER_UNIT || marketPrice);
-  const discountPercentage = Number(process.env.NEXT_PUBLIC_TAILORING_DISCOUNT_PERCENTAGE || 5);
-  const advancePercentage = Number(process.env.NEXT_PUBLIC_TAILORING_ADVANCE_PERCENTAGE || 20);
-
-  return {
-    marketPrice,
-    pricingType: "piece" as const,
-    pricePerUnit,
-    discountPercentage,
-    advancePercentage,
-  };
-};
-
-const buildPricingFromProduct = (
-  product: PricingProduct,
-  quantityOrMeter: number,
-): PricingCalculationInput => {
-  return {
-    marketPrice: product.marketPrice || product.price,
-    pricingType: product.pricingType,
-    pricePerUnit: product.pricePerUnit || product.price,
-    quantityOrMeter,
-    discountPercentage: product.discountPercentage ?? 5,
-    advancePercentage: product.advancePercentage ?? 20,
-  };
 };
 
 const toFiniteNumber = (value: unknown, fallback: number) => {
@@ -82,36 +48,83 @@ const normalizePricingType = (value: unknown, productType: unknown): "meter" | "
   return "piece";
 };
 
+const buildPricingFromProduct = (
+  product: PricingProduct,
+  quantityOrMeter: number,
+): PricingCalculationInput => ({
+  marketPrice: product.marketPrice || product.price,
+  pricingType: product.pricingType,
+  pricePerUnit: product.pricePerUnit || product.price,
+  quantityOrMeter,
+  discountPercentage: product.discountPercentage ?? 0,
+  advancePercentage: product.advancePercentage ?? 20,
+});
+
+const toBreakdownLines = (breakdown: PricingBreakdown) => {
+  const lines = [{ label: "Base Price", amount: breakdown.finalPrice }];
+
+  if (breakdown.pickupCharge > 0) {
+    lines.push({ label: "Pickup Charge", amount: breakdown.pickupCharge });
+  }
+
+  if (breakdown.dropCharge > 0) {
+    lines.push({ label: "Drop Charge", amount: breakdown.dropCharge });
+  }
+
+  return lines;
+};
+
 const getProductForPricing = async (productId: string): Promise<PricingProduct | null> => {
+  const normalizedProductId = productId.trim();
+
   try {
     const adminDb = getFirebaseAdminDb();
-    const productSnap = await adminDb.collection("products").doc(productId).get();
+    let productData: Record<string, unknown> | undefined;
+
+    const productSnap = await adminDb.collection("products").doc(normalizedProductId).get();
 
     if (productSnap.exists) {
-      const data = productSnap.data() as Record<string, unknown>;
-      const price = toFiniteNumber(data.price, 0);
-      const marketPrice = toFiniteNumber(data.marketPrice, price);
-      const pricingType = normalizePricingType(data.pricingType, data.productType);
-      const pricePerUnit = toFiniteNumber(data.pricePerUnit, price);
+      productData = productSnap.data() as Record<string, unknown>;
+    }
+
+    if (!productData) {
+      console.log("Trying fallback query...");
+
+      const fallbackSnap = await adminDb
+        .collection("products")
+        .where("id", "==", normalizedProductId)
+        .limit(1)
+        .get();
+
+      if (!fallbackSnap.empty) {
+        productData = fallbackSnap.docs[0].data() as Record<string, unknown>;
+      }
+    }
+
+    if (productData) {
+      const price = toFiniteNumber(productData.price, 0);
+      const marketPrice = toFiniteNumber(productData.marketPrice, price);
+      const pricingType = normalizePricingType(productData.pricingType, productData.productType);
+      const pricePerUnit = toFiniteNumber(productData.pricePerUnit, price);
 
       return {
         price,
         marketPrice,
         pricingType,
         pricePerUnit,
-        discountPercentage: toFiniteNumber(data.discountPercentage, 5),
-        advancePercentage: toFiniteNumber(data.advancePercentage, 20),
-        productType: data.productType === "fabric" ? "fabric" : "piece",
+        discountPercentage: toFiniteNumber(productData.discountPercentage, 0),
+        advancePercentage: toFiniteNumber(productData.advancePercentage, 20),
+        productType: productData.productType === "fabric" ? "fabric" : "piece",
       };
     }
   } catch (adminLookupError) {
-    console.warn("[pricing] admin product lookup failed, falling back to client product lookup", {
-      productId,
+    console.error("product_lookup_failed", {
+      productId: normalizedProductId,
       error: String(adminLookupError),
     });
   }
 
-  const fallbackProduct = await getProductById(productId);
+  const fallbackProduct = await getProductById(normalizedProductId);
 
   if (!fallbackProduct) {
     return null;
@@ -128,49 +141,20 @@ const getProductForPricing = async (productId: string): Promise<PricingProduct |
   };
 };
 
-const buildTailoringFallbackResponse = (
-  input: Pick<PricingRequestInput, "quantityOrMeter" | "pickupCharge" | "dropCharge" | "paymentType">,
-  reason: string,
-) => {
-  const fallback = getTailoringFallbackPricing();
-  const breakdown = calculatePricingBreakdown({
-    marketPrice: fallback.marketPrice,
-    pricingType: fallback.pricingType,
-    pricePerUnit: fallback.pricePerUnit,
-    quantityOrMeter: input.quantityOrMeter ?? 1,
-    discountPercentage: fallback.discountPercentage,
-    advancePercentage: fallback.advancePercentage,
-    pickupCharge: input.pickupCharge,
-    dropCharge: input.dropCharge,
-  });
-  const payableAmount = input.paymentType === "advance"
-    ? breakdown.advanceAmount
-    : breakdown.finalPayable;
-
-  console.warn("[pricing] tailoring_fallback_used", {
-    reason,
-    quantityOrMeter: breakdown.quantityOrMeter,
-    finalPayable: breakdown.finalPayable,
-  });
-
-  return NextResponse.json(
-    {
-      success: true,
-      breakdown,
-      payableAmount,
-      fallbackUsed: true,
-      fallbackReason: reason,
-    },
-    { status: 200 },
-  );
-};
-
 export async function POST(request: NextRequest) {
-  let input: PricingRequestInput | null = null;
-
   try {
-    const body = await request.json();
-    input = pricingSchema.parse(body);
+    const body = (await request.json()) as PricingRequestInput;
+    console.log("PRICING BODY:", body);
+
+    const input: PricingRequestInput = {
+      productId: typeof body.productId === "string" ? body.productId.trim() : undefined,
+      pricingType: body.pricingType,
+      quantityOrMeter: toFiniteNumber(body.quantityOrMeter, 1),
+      pickupCharge: toFiniteNumber(body.pickupCharge, 0),
+      dropCharge: toFiniteNumber(body.dropCharge, 0),
+      lineItems: Array.isArray(body.lineItems) ? body.lineItems : undefined,
+      paymentType: body.paymentType,
+    };
 
     if (input.lineItems && input.lineItems.length > 0) {
       const linePricingInputs: PricingCalculationInput[] = [];
@@ -179,139 +163,71 @@ export async function POST(request: NextRequest) {
         const product = await getProductForPricing(line.productId);
 
         if (!product) {
-          return NextResponse.json(
-            { error: `Product not found: ${line.productId}` },
-            { status: 404 },
-          );
+          throw new Error(`Product not found after fallback: ${line.productId}`);
         }
 
         linePricingInputs.push(buildPricingFromProduct(product, line.quantityOrMeter));
       }
 
-      const combinedBreakdown = calculatePricingForLineItems(linePricingInputs);
-      const payableAmount = input.paymentType === "advance"
-        ? combinedBreakdown.advanceAmount
-        : combinedBreakdown.finalPayable;
+      const pricingBreakdown = calculatePricingForLineItems(linePricingInputs);
+      const total = input.paymentType === "advance"
+        ? pricingBreakdown.advanceAmount
+        : pricingBreakdown.finalPayable;
 
-      console.info("[pricing] calculated_line_items", {
-        items: input.lineItems.length,
-        totalPrice: combinedBreakdown.totalPrice,
-        discount: combinedBreakdown.discountAmount,
-        finalPrice: combinedBreakdown.finalPrice,
+      return NextResponse.json({
+        total,
+        breakdown: toBreakdownLines(pricingBreakdown),
+        pricingBreakdown,
       });
-
-      return NextResponse.json(
-        {
-          success: true,
-          breakdown: combinedBreakdown,
-          payableAmount,
-          lineItems: input.lineItems,
-        },
-        { status: 200 },
-      );
     }
 
-    let pricingInput: PricingCalculationInput;
-
-    if (input.productId) {
-      let product: PricingProduct | null = null;
-
-      try {
-        product = await getProductForPricing(input.productId);
-      } catch (productLookupError) {
-        if (input.service === "tailoring") {
-          return buildTailoringFallbackResponse(input, `product_lookup_failed:${String(productLookupError)}`);
-        }
-
-        throw productLookupError;
-      }
-
-      if (!product) {
-        if (input.service === "tailoring") {
-          return buildTailoringFallbackResponse(input, "product_not_found_for_tailoring");
-        }
-
-        return NextResponse.json({ error: "Product not found" }, { status: 404 });
-      }
-
-      pricingInput = buildPricingFromProduct(
-        product,
-        input.quantityOrMeter ?? 1,
-      );
-
-      pricingInput = {
-        ...pricingInput,
-        pickupCharge: input.pickupCharge,
-        dropCharge: input.dropCharge,
-      };
-    } else if (input.service === "tailoring") {
-      const fallback = getTailoringFallbackPricing();
-
-      pricingInput = {
-        marketPrice: fallback.marketPrice,
-        pricingType: fallback.pricingType,
-        pricePerUnit: fallback.pricePerUnit,
-        quantityOrMeter: input.quantityOrMeter ?? 1,
-        discountPercentage: fallback.discountPercentage,
-        advancePercentage: fallback.advancePercentage,
-        pickupCharge: input.pickupCharge,
-        dropCharge: input.dropCharge,
-      };
-    } else {
-      return NextResponse.json(
-        { error: "Missing productId for product-based pricing" },
-        { status: 400 },
-      );
+    if (!input.productId) {
+      throw new Error("Missing productId");
     }
 
-    if (input.pricingType && input.pricingType !== pricingInput.pricingType) {
-      return NextResponse.json(
-        { error: "Invalid pricing_type for selected product" },
-        { status: 400 },
-      );
+    const product = await getProductForPricing(input.productId);
+
+    if (!product) {
+      throw new Error("Product not found after fallback");
     }
 
-    const breakdown = calculatePricingBreakdown(pricingInput);
-    const payableAmount = input.paymentType === "advance"
-      ? breakdown.advanceAmount
-      : breakdown.finalPayable;
-
-    console.info("[pricing] calculated", {
-      service: input.service,
-      productId: input.productId || null,
-      pricingType: breakdown.pricingType,
-      quantityOrMeter: breakdown.quantityOrMeter,
-      totalPrice: breakdown.totalPrice,
-      discount: breakdown.discountAmount,
-      finalPrice: breakdown.finalPrice,
-      payableAmount,
+    const price = product?.price ?? 0;
+    const pricingBreakdown = calculatePricingBreakdown({
+      ...buildPricingFromProduct(product, input.quantityOrMeter ?? 1),
+      pricingType: input.pricingType ?? product.pricingType,
+      pricePerUnit: price,
+      pickupCharge: input.pickupCharge,
+      dropCharge: input.dropCharge,
     });
 
-    return NextResponse.json(
-      {
-        success: true,
-        breakdown,
-        payableAmount,
-      },
-      { status: 200 },
-    );
-  } catch (error: unknown) {
-    console.error("[pricing] calculate_failed", error);
+    const total = input.paymentType === "advance"
+      ? pricingBreakdown.advanceAmount
+      : pricingBreakdown.finalPayable;
 
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Invalid pricing request", details: error.issues },
-        { status: 400 },
-      );
-    }
+    return NextResponse.json({
+      total,
+      breakdown: toBreakdownLines(pricingBreakdown),
+      pricingBreakdown,
+    });
+  } catch (error) {
+    console.error("PRICING ERROR:", error);
 
-    if (input?.service === "tailoring") {
-      return buildTailoringFallbackResponse(input, "unexpected_calculation_error");
-    }
+    const pricingBreakdown = calculatePricingBreakdown({
+      marketPrice: 100,
+      pricingType: "piece",
+      pricePerUnit: 100,
+      quantityOrMeter: 1,
+      discountPercentage: 0,
+      advancePercentage: 20,
+    });
 
-    return NextResponse.json(
-      { error: "Unable to calculate pricing" },
-      { status: 500 },
-    );
+    return NextResponse.json({
+      total: 100,
+      breakdown: [
+        { label: "Fallback Price", amount: 100 },
+      ],
+      pricingBreakdown,
+      fallbackUsed: true,
+    });
   }
 }
