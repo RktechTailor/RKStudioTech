@@ -1,4 +1,5 @@
 import {
+  addDoc,
   collection,
   DocumentData,
   deleteDoc,
@@ -423,12 +424,34 @@ export const getProductsByCategoryPage = async (
     .filter((product) => product.category === category);
   const nextCursor = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : cursor;
 
-  if (!products.length && allowMockCatalogFallback) {
-    return {
-      products: dummyCatalogProducts.filter((product) => product.category === category),
-      cursor: null,
-      hasMore: false,
-    };
+  if (!products.length) {
+    // Final fallback: read the whole collection (no index required) and filter client-side.
+    // This covers cases where an "in" index is missing or Firestore rules differ per field.
+    try {
+      const fullSnapshot = await getDocs(collection(db, "products"));
+      console.log("[products] Full collection count:", fullSnapshot.size);
+      const directProducts = fullSnapshot.docs
+        .map((d) => toProduct(d.id, d.data() as Partial<CatalogProduct>))
+        .filter((p) => p.category === category);
+      console.log("[products] Direct-filtered for category:", category, "count:", directProducts.length);
+      if (directProducts.length) {
+        return {
+          products: directProducts.slice(0, pageSize),
+          cursor: null,
+          hasMore: directProducts.length > pageSize,
+        };
+      }
+    } catch (directFetchError) {
+      console.error("Firestore fetch error:", directFetchError);
+    }
+
+    if (allowMockCatalogFallback) {
+      return {
+        products: dummyCatalogProducts.filter((product) => product.category === category),
+        cursor: null,
+        hasMore: false,
+      };
+    }
   }
 
   return {
@@ -436,4 +459,232 @@ export const getProductsByCategoryPage = async (
     cursor: nextCursor,
     hasMore: snapshot.docs.length === pageSize,
   };
+};
+
+/**
+ * Direct full-collection fetch with client-side category filter.
+ * Use this as a diagnostic tool or alternative loader when paginated queries fail.
+ */
+export const fetchProductsByCategory = async (category: ProductCategory): Promise<CatalogProduct[]> => {
+  const db = getFirebaseDb();
+
+  if (!db) {
+    console.warn("[products] Firebase not available");
+    return allowMockCatalogFallback
+      ? dummyCatalogProducts.filter((p) => p.category === category)
+      : [];
+  }
+
+  try {
+    console.log("[products] Direct fetch for category:", category);
+    const snapshot = await getDocs(collection(db, "products"));
+    console.log("Products count:", snapshot.size);
+
+    if (snapshot.empty) {
+      console.warn("[products] No products found in collection");
+      return allowMockCatalogFallback
+        ? dummyCatalogProducts.filter((p) => p.category === category)
+        : [];
+    }
+
+    const all = snapshot.docs.map((d) => toProduct(d.id, d.data() as Partial<CatalogProduct>));
+    const filtered = all.filter((p) => p.category === category);
+    console.log("[products] Filtered for category:", category, "count:", filtered.length);
+
+    if (!filtered.length && allowMockCatalogFallback) {
+      return dummyCatalogProducts.filter((p) => p.category === category);
+    }
+
+    return filtered;
+  } catch (err) {
+    console.error("Firestore fetch error:", err);
+    return allowMockCatalogFallback
+      ? dummyCatalogProducts.filter((p) => p.category === category)
+      : [];
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Dummy data seed — for testing when Firestore "products" collection is empty
+// ---------------------------------------------------------------------------
+
+type SeedProductInput = Omit<ProductInput, "tag"> & {
+  tag: string;
+  inStock?: boolean;
+};
+
+const SEED_PRODUCTS: SeedProductInput[] = [
+  {
+    name: "Premium Cotton Fabric",
+    category: "fabric",
+    price: 450,
+    marketPrice: 550,
+    pricingType: "meter",
+    pricePerUnit: 450,
+    productType: "fabric",
+    type: "cotton",
+    image: "https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&w=900&q=80",
+    tag: "bestseller",
+    description: "Soft premium cotton fabric ideal for kurtas and shirts.",
+    discountPercentage: 18,
+    advancePercentage: 20,
+    inStock: true,
+    rating: 4.7,
+  },
+  {
+    name: "Silk Blend Fabric",
+    category: "fabric",
+    price: 850,
+    marketPrice: 1000,
+    pricingType: "meter",
+    pricePerUnit: 850,
+    productType: "fabric",
+    type: "silk",
+    image: "https://images.unsplash.com/photo-1590735213920-68192a487bc2?auto=format&fit=crop&w=900&q=80",
+    tag: "premium",
+    description: "Luxurious silk blend fabric for ethnic wear.",
+    discountPercentage: 15,
+    advancePercentage: 20,
+    inStock: true,
+    rating: 4.8,
+  },
+  {
+    name: "Linen Casual Fabric",
+    category: "fabric",
+    price: 320,
+    marketPrice: 380,
+    pricingType: "meter",
+    pricePerUnit: 320,
+    productType: "fabric",
+    type: "linen",
+    image: "https://images.unsplash.com/photo-1620799139507-2a76f79a2f4d?auto=format&fit=crop&w=900&q=80",
+    tag: "casual",
+    description: "Breathable linen fabric for daily wear.",
+    discountPercentage: 16,
+    advancePercentage: 20,
+    inStock: true,
+    rating: 4.5,
+  },
+  {
+    name: "Embroidered Dupatta",
+    category: "dupatta",
+    price: 650,
+    marketPrice: 800,
+    pricingType: "piece",
+    pricePerUnit: 650,
+    productType: "piece",
+    type: "embroidered",
+    image: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=900&q=80",
+    tag: "festive",
+    description: "Handcrafted embroidered dupatta with mirror work.",
+    discountPercentage: 19,
+    advancePercentage: 20,
+    inStock: true,
+    rating: 4.9,
+  },
+  {
+    name: "Chiffon Dupatta",
+    category: "dupatta",
+    price: 380,
+    marketPrice: 450,
+    pricingType: "piece",
+    pricePerUnit: 380,
+    productType: "piece",
+    type: "chiffon",
+    image: "https://images.unsplash.com/photo-1614432002880-d1e54f14bd67?auto=format&fit=crop&w=900&q=80",
+    tag: "light",
+    description: "Lightweight chiffon dupatta for casual and formal occasions.",
+    discountPercentage: 15,
+    advancePercentage: 20,
+    inStock: true,
+    rating: 4.6,
+  },
+  {
+    name: "Georgette Printed Dupatta",
+    category: "dupatta",
+    price: 420,
+    marketPrice: 500,
+    pricingType: "piece",
+    pricePerUnit: 420,
+    productType: "piece",
+    type: "georgette",
+    image: "https://images.unsplash.com/photo-1583744946564-b52ac1c389c8?auto=format&fit=crop&w=900&q=80",
+    tag: "printed",
+    description: "Stylish georgette dupatta with floral print.",
+    discountPercentage: 16,
+    advancePercentage: 20,
+    inStock: true,
+    rating: 4.4,
+  },
+];
+
+/**
+ * Seeds dummy products into Firestore only if the collection is currently empty.
+ * Safe to call on every app load — will skip if data already exists.
+ * Returns the number of documents added (0 if skipped).
+ */
+export const seedDummyProducts = async (): Promise<number> => {
+  const db = getFirebaseDb();
+
+  if (!db) {
+    console.warn("[seed] Firebase not available — skipping seed");
+    return 0;
+  }
+
+  try {
+    const existing = await getDocs(collection(db, "products"));
+    console.log("[seed] Current products count:", existing.size);
+
+    if (existing.size > 0) {
+      console.log("[seed] Collection not empty — skipping seed");
+      return 0;
+    }
+
+    let added = 0;
+
+    for (const product of SEED_PRODUCTS) {
+      await addDoc(collection(db, "products"), {
+        ...product,
+        createdAt: serverTimestamp(),
+      });
+      added++;
+    }
+
+    console.log(`[seed] Seeded ${added} dummy products`);
+    return added;
+  } catch (err) {
+    console.error("[seed] Failed to seed products:", err);
+    return 0;
+  }
+};
+
+/**
+ * Deletes ALL documents from the "products" collection.
+ * Pass confirmed=true to execute — prevents accidental calls.
+ * Returns the number of documents deleted.
+ */
+export const clearDummyProducts = async (confirmed = false): Promise<number> => {
+  if (!confirmed) {
+    console.warn("[seed] clearDummyProducts called without confirmed=true — aborting");
+    return 0;
+  }
+
+  const db = getFirebaseDb();
+
+  if (!db) {
+    console.warn("[seed] Firebase not available — cannot clear");
+    return 0;
+  }
+
+  try {
+    const snapshot = await getDocs(collection(db, "products"));
+    console.log("[seed] Deleting", snapshot.size, "products...");
+
+    await Promise.all(snapshot.docs.map((d) => deleteDoc(doc(db, "products", d.id))));
+    console.log(`[seed] Deleted ${snapshot.size} products`);
+    return snapshot.size;
+  } catch (err) {
+    console.error("[seed] Failed to clear products:", err);
+    return 0;
+  }
 };

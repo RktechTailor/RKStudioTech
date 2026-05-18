@@ -2,7 +2,7 @@
 
 import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Divider, FormControl, FormControlLabel, Radio, RadioGroup, Stack, TextField, Typography } from "@mui/material";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Layout from "@/components/layout/Layout";
 import { OrderDetails } from "@/services/orderService";
 import { useAuth } from "@/hooks/useAuth";
@@ -527,68 +527,47 @@ export default function CheckoutPage() {
     }
   };
 
-  const handleContinueWithWhatsAppPayment = () => {
-    console.info("[checkout] whatsapp manual payment clicked", {
-      token,
-      hasPendingOrder: Boolean(pendingOrder),
-      hasPricingBreakdown: Boolean(pricingBreakdown),
-    });
+  const handleContinueWithWhatsAppPayment = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
 
-    setError("");
-    setSuccess("");
+    // CRITICAL: Build URL and call window.open as the VERY FIRST action.
+    // Browsers only allow popups triggered directly within a user gesture;
+    // any state update or async call before window.open causes popup blocking.
+    const phone = RK_STUDIO.whatsappNumber || "918901501572";
+    const safeToken = token || "N/A";
+    const safeAmount = pricingBreakdown?.finalPayable ?? finalAmount ?? 0;
 
-    if (!pendingOrder) {
-      setError("Payment details are not ready yet. Please try again.");
+    const immediateUrl = `https://wa.me/${phone}?text=${encodeURIComponent(
+      [
+        "Hello RK Studio, I want to complete my order.",
+        `Order ID: ${safeToken}`,
+        `Amount: \u20b9${safeAmount}`,
+      ].join("\n"),
+    )}`;
+
+    console.log("[checkout] Opening WhatsApp:", immediateUrl);
+
+    const newWindow = window.open(immediateUrl, "_blank", "noopener,noreferrer");
+    if (!newWindow) {
+      console.error("[checkout] Popup blocked — redirecting via location.href");
+      window.location.href = immediateUrl;
       return;
     }
 
-    const fallbackBreakdown = pricingBreakdown || {
-      marketPrice: finalAmount,
-      discountAmount: 0,
-      discountPercentage: 0,
-      finalPrice: finalAmount,
-      pickupCharge: pickupChargeFromOrder,
-      dropCharge: dropChargeFromOrder,
-      finalPayable: finalAmount,
-      advanceAmount: finalAmount,
-      remainingAmount: 0,
-    };
+    // After window.open succeeds → run remaining UI and analytics work
+    setError("");
+    setSuccess("Continuing on WhatsApp. Complete your payment there.");
 
-    const manualPaymentDetails = [
-      ...pendingOrder.whatsappDetails,
-      `Market Price: INR ${fallbackBreakdown.marketPrice}`,
-      `Discount: INR ${fallbackBreakdown.discountAmount} (${fallbackBreakdown.discountPercentage}%)`,
-      `Final Price: INR ${fallbackBreakdown.finalPrice}`,
-      `Pickup Charge: INR ${fallbackBreakdown.pickupCharge}`,
-      `Drop Charge: INR ${fallbackBreakdown.dropCharge}`,
-      `Total Payable: INR ${fallbackBreakdown.finalPayable}`,
-      `Advance: INR ${fallbackBreakdown.advanceAmount}`,
-      `Remaining: INR ${fallbackBreakdown.remainingAmount}`,
-      `Requested Payment: ${paymentLabel} (INR ${finalAmount})`,
-      "Payment Mode: Manual via WhatsApp (online payment not working)",
-      "Please share payment scanner / QR and next steps.",
-    ];
-
-    const phone = RK_STUDIO.whatsappNumber || "918901501572";
-    const directMessage = encodeURIComponent(`Order ID: ${token}\nAmount: ₹${fallbackBreakdown.finalPayable || 0}\n\nHi, I want to confirm my order via WhatsApp.`);
-    const directUrl = `https://wa.me/${phone}?text=${directMessage}`;
-    console.info("[checkout] whatsapp manual payment url", { directUrl, phone });
-
-    const url = buildWhatsAppUrl({
-      name: pendingOrder.customerName,
-      phone: pendingOrder.customerPhone,
-      service: pendingOrder.service,
-      details: manualPaymentDetails,
-    });
+    if (!pendingOrder) {
+      return;
+    }
 
     void trackAnalyticsEvent("payment_fallback_whatsapp", {
       service: pendingOrder.service,
       payment_type: pendingOrder.paymentType || "full",
       value: finalAmount,
     });
-
-    setSuccess("Online payment is not working right now. Continue payment on WhatsApp with scanner/QR support.");
-    openExternalLink(url || directUrl, "manual-whatsapp");
   };
 
   const renderTitle = () => {
@@ -783,10 +762,12 @@ export default function CheckoutPage() {
                   {submitting ? "Processing..." : "Pay and Confirm"}
                 </Button>
                 <Button
+                  component="button"
+                  type="button"
                   variant="outlined"
                   color="success"
                   onClick={handleContinueWithWhatsAppPayment}
-                  disabled={submitting || orderConfirmed || !hasValidPaymentSession}
+                  disabled={orderConfirmed}
                   sx={actionButtonDisabledSx}
                 >
                   Continue via WhatsApp Payment

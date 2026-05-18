@@ -37,6 +37,8 @@ import {
   UserOrder,
 } from "@/services/orderService";
 import { AppUser, subscribeToAllUsers } from "@/services/userService";
+import { clearDummyProducts, seedDummyProducts } from "@/services/productService";
+import { useAutoSeed } from "@/hooks/useAutoSeed";
 import PreLaunchFlow from "@/features/admin/PreLaunchFlow";
 
 const formatStatusLabel = (status: OrderStatus) => {
@@ -332,6 +334,10 @@ export default function AdminDashboard() {
   const [launchFlowOpen, setLaunchFlowOpen] = useState(false);
   const [readiness, setReadiness] = useState<ReadinessResponse | null>(null);
   const [readinessLoading, setReadinessLoading] = useState(false);
+  const [seedStatus, setSeedStatus] = useState<"idle" | "seeding" | "clearing" | "done">("idle");
+  const [seedMessage, setSeedMessage] = useState("");
+
+  useAutoSeed();
 
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
     if (user?.provider === "mock") {
@@ -985,6 +991,75 @@ export default function AdminDashboard() {
                   </TableBody>
                 </Table>
               </Box>
+            </Stack>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent>
+            <Stack spacing={2}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography variant="h6">Product Data Tools</Typography>
+                <Chip label="Dev" size="small" color="warning" />
+              </Stack>
+
+              <Typography variant="body2" color="text.secondary">
+                Use these tools to populate or reset the Firestore products collection during testing.
+                Seeding is skipped automatically if the collection already has data.
+              </Typography>
+
+              {seedMessage ? (
+                <Alert
+                  severity={seedStatus === "done" ? "success" : "info"}
+                  onClose={() => setSeedMessage("")}
+                >
+                  {seedMessage}
+                </Alert>
+              ) : null}
+
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  disabled={seedStatus === "seeding" || seedStatus === "clearing"}
+                  onClick={async () => {
+                    setSeedStatus("seeding");
+                    setSeedMessage("");
+                    const added = await seedDummyProducts();
+                    setSeedStatus("done");
+                    setSeedMessage(
+                      added > 0
+                        ? `Seeded ${added} dummy products successfully.`
+                        : "Collection already has products — seed skipped.",
+                    );
+                  }}
+                >
+                  {seedStatus === "seeding" ? "Seeding..." : "Seed Dummy Data"}
+                </Button>
+
+                <Button
+                  variant="outlined"
+                  color="error"
+                  disabled={seedStatus === "seeding" || seedStatus === "clearing"}
+                  onClick={async () => {
+                    if (!window.confirm("Delete ALL products from Firestore? This cannot be undone.")) {
+                      return;
+                    }
+
+                    setSeedStatus("clearing");
+                    setSeedMessage("");
+                    const deleted = await clearDummyProducts(true);
+                    setSeedStatus("done");
+                    setSeedMessage(
+                      deleted > 0
+                        ? `Deleted ${deleted} products from Firestore.`
+                        : "No products found to delete.",
+                    );
+                  }}
+                >
+                  {seedStatus === "clearing" ? "Clearing..." : "Clear All Products"}
+                </Button>
+              </Stack>
             </Stack>
           </CardContent>
         </Card>
