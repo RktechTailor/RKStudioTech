@@ -75,9 +75,10 @@ export default function MyOrdersPage() {
       }
 
       const auth = getFirebaseAuth();
-      const user = auth?.currentUser;
+      const firebaseUser = auth?.currentUser;
+      const user = authUser?.provider === "mock" ? authUser : firebaseUser;
 
-      if (!user) {
+      if (!user?.uid) {
         if (!cancelled) {
           setOrders([]);
           setError("");

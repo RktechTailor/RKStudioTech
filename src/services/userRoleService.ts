@@ -46,19 +46,15 @@ export const resolveUserRoleFromFirestore = async ({ uid, phoneNumber }: Resolve
       return "user" as const;
     }
 
-    const allUsers = await getDocs(collection(db, "users"));
-    const matched = allUsers.docs.find((userDoc) => {
-      const data = userDoc.data() as { phone?: string };
-      return normalizePhone(data.phone) === normalized;
-    });
+    const normalizedQuery = query(collection(db, "users"), where("phone", "==", normalized));
+    const normalizedSnapshot = await getDocs(normalizedQuery);
 
-    if (!matched) {
-      return "user" as const;
+    if (!normalizedSnapshot.empty) {
+      return normalizeRole((normalizedSnapshot.docs[0].data() as { role?: string }).role);
     }
 
-    return normalizeRole((matched.data() as { role?: string }).role);
+    return "user" as const;
   } catch (error) {
-    console.error("[role] resolve failed", error);
     return "user" as const;
   }
 };

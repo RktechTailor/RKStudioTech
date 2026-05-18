@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
-import { getAdminAuth, getAdminDb } from "@/lib/firebaseAdmin";
+import { getAdminDb } from "@/lib/firebaseAdmin";
 import { getProductById } from "@/services/productService";
 import {
   calculatePricingBreakdown,
   calculatePricingForLineItems,
   PricingCalculationInput,
 } from "@/utils/pricing";
+import { verifyUserToken } from "@/utils/server/authUtils";
 
 const lineItemSchema = z.object({
   productId: z.string().min(1),
@@ -220,23 +221,13 @@ export async function POST(request: NextRequest) {
   let body: unknown;
 
   try {
-    const authHeader = request.headers.get("authorization") || request.headers.get("Authorization");
+    const authUser = await verifyUserToken(request);
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!authUser) {
+      return NextResponse.json({ error: "User not authenticated" }, { status: 401 });
     }
 
-    const token = authHeader.replace("Bearer ", "").trim();
-
-    let decoded: Awaited<ReturnType<ReturnType<typeof getAdminAuth>["verifyIdToken"]>>;
-
-    try {
-      decoded = await getAdminAuth().verifyIdToken(token);
-    } catch {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
-
-    uid = decoded.uid;
+    uid = authUser.uid;
     console.log("FINALIZE USER UID:", uid);
 
     if (!uid) {

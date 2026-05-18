@@ -24,7 +24,8 @@ export const normalizeIndianPhone = (value: string): string => {
   return value;
 };
 
-export const MOCK_OTP = process.env.NEXT_PUBLIC_MOCK_OTP || "";
+const rawMockOtp = process.env.NEXT_PUBLIC_MOCK_OTP || "";
+export const MOCK_OTP = rawMockOtp && rawMockOtp !== "false" ? rawMockOtp : "";
 export const useMockOtp = getEnvBool(process.env.NEXT_PUBLIC_USE_MOCK_OTP);
 
 export const createMockUser = (name: string, phone: string, role: UserRole): AuthUser => {

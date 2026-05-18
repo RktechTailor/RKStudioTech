@@ -19,7 +19,9 @@ const getBearerToken = (request: NextRequest): string | null => {
 
 const getDevMockUserFromToken = (token: string): AuthUser | null => {
   // token format: mock:<uid>:<role>
-  if (process.env.NODE_ENV === "production" || !token.startsWith("mock:")) {
+  const mockOtpEnabled = process.env.NEXT_PUBLIC_USE_MOCK_OTP === "true";
+
+  if ((!mockOtpEnabled && process.env.NODE_ENV === "production") || !token.startsWith("mock:")) {
     return null;
   }
 

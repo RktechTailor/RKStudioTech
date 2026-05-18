@@ -259,18 +259,28 @@ export const getProductById = async (id: string): Promise<CatalogProduct | null>
     return dummyCatalogProducts.find((product) => product.id === id) || null;
   }
 
-  const productRef = doc(db, "products", id);
-  const productSnap = await getDoc(productRef);
+  try {
+    const productRef = doc(db, "products", id);
+    const productSnap = await getDoc(productRef);
 
-  if (!productSnap.exists()) {
+    if (!productSnap.exists()) {
+      if (allowMockCatalogFallback) {
+        return dummyCatalogProducts.find((product) => product.id === id) || null;
+      }
+
+      return null;
+    }
+
+    return toProduct(productSnap.id, productSnap.data() as Partial<CatalogProduct>);
+  } catch (error) {
+    console.warn("Product lookup failed, using catalog fallback if available:", error);
+
     if (allowMockCatalogFallback) {
       return dummyCatalogProducts.find((product) => product.id === id) || null;
     }
 
     return null;
   }
-
-  return toProduct(productSnap.id, productSnap.data() as Partial<CatalogProduct>);
 };
 
 export const removeProduct = async (id: string) => {
