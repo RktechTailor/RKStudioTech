@@ -1,11 +1,18 @@
 "use client";
 
 import { CircularProgress, Stack } from "@mui/material";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { getFirebaseDb } from "@/services/firebase";
+
+const normalize = (phone?: string | null) => phone?.replace(/\D/g, "") || "";
+
+const resolveRole = (roleValue: unknown) => {
+  const role = typeof roleValue === "string" ? roleValue.toLowerCase() : "user";
+  return role === "admin" ? "admin" : "user";
+};
 
 const UserDashboard = dynamic(() => import("@/features/dashboard/UserDashboard"), {
   loading: () => (
@@ -40,8 +47,29 @@ export default function DashboardPage() {
     const fetchUserRole = async () => {
       const db = getFirebaseDb();
       const userPhone = user?.phoneNumber;
+      const normalizedPhone = normalize(userPhone);
+      const uid = user?.uid;
 
-      if (!db || !userPhone) {
+      if (!db) {
+        setUserRole("user");
+        return;
+      }
+
+      if (uid) {
+        try {
+          const userDoc = await getDoc(doc(db, "users", uid));
+          if (userDoc.exists()) {
+            const role = resolveRole((userDoc.data() as { role?: string }).role);
+            setUserRole(role);
+            return;
+          }
+        } catch (err) {
+          console.error("ROLE FETCH ERROR (UID):", err);
+        }
+      }
+
+      if (!userPhone) {
+        setUserRole("user");
         return;
       }
 
@@ -51,13 +79,29 @@ export default function DashboardPage() {
 
         if (!snapshot.empty) {
           const data = snapshot.docs[0].data() as { role?: string };
-          const role = (data.role || "user").toLowerCase();
-          console.log("USER ROLE:", role);
+          const role = resolveRole(data.role);
           setUserRole(role);
-        } else {
-          console.log("No user found");
-          setUserRole("user");
+          return;
         }
+
+        if (!normalizedPhone) {
+          setUserRole("user");
+          return;
+        }
+
+        const allUsers = await getDocs(collection(db, "users"));
+        const matched = allUsers.docs.find((userDoc) => {
+          const userData = userDoc.data() as { phone?: string };
+          const candidate = normalize(userData.phone);
+          return candidate && candidate.slice(-10) === normalizedPhone.slice(-10);
+        });
+
+        if (matched) {
+          setUserRole(resolveRole((matched.data() as { role?: string }).role));
+          return;
+        }
+
+        setUserRole("user");
       } catch (err) {
         console.error("ROLE FETCH ERROR:", err);
         setUserRole("user");
@@ -65,7 +109,7 @@ export default function DashboardPage() {
     };
 
     void fetchUserRole();
-  }, [loading, user?.phoneNumber]);
+  }, [loading, user?.phoneNumber, user?.uid]);
 
   if (userRole === "admin") {
     return <AdminDashboard />;
