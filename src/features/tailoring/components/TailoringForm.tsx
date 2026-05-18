@@ -34,6 +34,11 @@ type TailoringFormData = {
   customSizeNotes: string;
   bust: string;
   waist: string;
+  hip: string;
+  shoulder: string;
+  sleeveLength: string;
+  kurtiLength: string;
+  pantLength: string;
   length: string;
   extraMeasurement: string;
   fabricSource: FabricSource;
@@ -61,6 +66,38 @@ const CUSTOM_SIZE_VALUE = "Custom Size";
 const CUSTOM_SIZE_NOTES_MAX_LENGTH = 500;
 const DEFAULT_PICKUP_CHARGE = Number(process.env.NEXT_PUBLIC_TAILORING_PICKUP_CHARGE || 50);
 const DEFAULT_DROP_CHARGE = Number(process.env.NEXT_PUBLIC_TAILORING_DROP_CHARGE || 50);
+
+const SALWAR_SUIT_FABRIC_OPTIONS: Array<{ value: string; label: string; description: string }> = [
+  { value: "cotton", label: "Cotton", description: "Soft and breathable for summer." },
+  { value: "rayon", label: "Rayon", description: "Flowy drape for daily and semi-formal wear." },
+  { value: "georgette", label: "Georgette", description: "Light texture for party styles." },
+  { value: "chiffon", label: "Chiffon", description: "Very light and airy feel." },
+  { value: "silk", label: "Silk", description: "Premium wedding and festive look." },
+  { value: "lawn-cotton", label: "Lawn Cotton", description: "Thin and cool for hot weather." },
+  { value: "velvet", label: "Velvet", description: "Heavy and rich finish." },
+  { value: "muslin", label: "Muslin", description: "Premium lightweight comfort." },
+  { value: "crepe", label: "Crepe", description: "Soft stretch and easy fall." },
+  { value: "organza", label: "Organza", description: "Fancy sheer fabric for occasion wear." },
+];
+
+const BLOUSE_FABRIC_OPTIONS: Array<{ value: string; label: string; description: string }> = [
+  { value: "cotton", label: "Cotton", description: "Comfortable everyday blouse option." },
+  { value: "silk", label: "Silk", description: "Classic bridal and festive choice." },
+  { value: "satin", label: "Satin", description: "Smooth glossy finish." },
+  { value: "velvet", label: "Velvet", description: "Heavy premium blouse style." },
+  { value: "net", label: "Net", description: "Light and decorative layer." },
+  { value: "brocade", label: "Brocade", description: "Traditional woven festive texture." },
+  { value: "georgette", label: "Georgette", description: "Soft drape with elegant fall." },
+  { value: "raw-silk", label: "Raw Silk", description: "Textured premium silk look." },
+  { value: "banarasi", label: "Banarasi", description: "Heritage woven festive fabric." },
+  { value: "linen", label: "Linen", description: "Breathable and crisp structure." },
+];
+
+const FABRIC_SURCHARGE: Record<string, number> = {
+  silk: 200,
+  velvet: 300,
+  cotton: 0,
+};
 
 const sizeOptions: Array<{ value: string; label: string }> = [
   { value: "XS", label: "XS (Extra Small)" },
@@ -138,6 +175,11 @@ const initialData: TailoringFormData = {
   customSizeNotes: "",
   bust: "",
   waist: "",
+  hip: "",
+  shoulder: "",
+  sleeveLength: "",
+  kurtiLength: "",
+  pantLength: "",
   length: "",
   extraMeasurement: "",
   fabricSource: "",
@@ -368,6 +410,14 @@ export default function TailoringForm() {
     return Array.from(new Set(products.map((product) => product.type))).sort((left, right) => left.localeCompare(right));
   }, [products]);
 
+  const tailoringFabricOptions = useMemo(() => {
+    return formData.category === "blouse" ? BLOUSE_FABRIC_OPTIONS : SALWAR_SUIT_FABRIC_OPTIONS;
+  }, [formData.category]);
+
+  const selectedFabricOption = useMemo(() => {
+    return tailoringFabricOptions.find((option) => option.value === formData.fabricType) || null;
+  }, [formData.fabricType, tailoringFabricOptions]);
+
   const filteredFabricProducts = useMemo(() => {
     const normalizedQuery = pickerFilters.query.trim().toLowerCase();
     const maxPrice = Number(pickerFilters.maxPrice || 0);
@@ -401,9 +451,13 @@ export default function TailoringForm() {
 
   const fabricDetails = useMemo<OrderDetails | null>(() => {
     if (formData.fabricSource === "own") {
+      const normalizedType = formData.fabricType.trim().toLowerCase();
+      const surcharge = FABRIC_SURCHARGE[normalizedType] || 0;
       const details: OrderDetails = {
         fabricSource: "own",
-        fabricType: formData.fabricType.trim(),
+        fabricType: normalizedType,
+        fabricTypeDescription: selectedFabricOption?.description || "",
+        fabricSurcharge: surcharge,
         fabricColor: formData.fabricColor.trim(),
         notes: formData.fabricNotes.trim(),
       };
@@ -412,8 +466,12 @@ export default function TailoringForm() {
     }
 
     if (formData.fabricSource === "external") {
+      const normalizedType = formData.fabricType.trim().toLowerCase();
       const details: OrderDetails = {
         fabricSource: "external",
+        fabricType: normalizedType,
+        fabricTypeDescription: selectedFabricOption?.description || "",
+        fabricSurcharge: FABRIC_SURCHARGE[normalizedType] || 0,
         fabricName: formData.fabricName.trim(),
         fabricLink: formData.fabricLink.trim(),
         notes: formData.fabricNotes.trim(),
@@ -433,13 +491,14 @@ export default function TailoringForm() {
     }
 
     return null;
-  }, [formData.fabricColor, formData.fabricLink, formData.fabricName, formData.fabricNotes, formData.fabricSource, formData.fabricType, formData.rkStudioProductId, selectedFabricProduct]);
+  }, [formData.fabricColor, formData.fabricLink, formData.fabricName, formData.fabricNotes, formData.fabricSource, formData.fabricType, formData.rkStudioProductId, selectedFabricOption?.description, selectedFabricProduct]);
 
   const fabricSummaryLines = useMemo(() => {
     if (formData.fabricSource === "own") {
       return [
         `Fabric Source: ${getFabricSourceLabel(formData.fabricSource)}`,
         `Type: ${formData.fabricType || "-"}`,
+        `Type Details: ${selectedFabricOption?.description || "-"}`,
         `Color: ${formData.fabricColor || "-"}`,
         `Notes: ${formData.fabricNotes || "-"}`,
       ];
@@ -448,6 +507,8 @@ export default function TailoringForm() {
     if (formData.fabricSource === "external") {
       return [
         `Fabric Source: ${getFabricSourceLabel(formData.fabricSource)}`,
+        `Type: ${formData.fabricType || "-"}`,
+        `Type Details: ${selectedFabricOption?.description || "-"}`,
         `Fabric Name: ${formData.fabricName || "-"}`,
         `Fabric Link: ${formData.fabricLink || "-"}`,
         `Notes: ${formData.fabricNotes || "-"}`,
@@ -462,7 +523,7 @@ export default function TailoringForm() {
     }
 
     return ["Fabric Source: -"];
-  }, [formData.fabricLink, formData.fabricName, formData.fabricNotes, formData.fabricSource, formData.fabricType, formData.fabricColor, selectedFabricProduct]);
+  }, [formData.fabricLink, formData.fabricName, formData.fabricNotes, formData.fabricSource, formData.fabricType, formData.fabricColor, selectedFabricOption?.description, selectedFabricProduct]);
 
   const whatsappDetails = useMemo(() => {
     const normalizedCustomSize = normalizeSpace(formData.customSizeNotes);
@@ -493,11 +554,11 @@ export default function TailoringForm() {
       `Pickup/Drop: ${pickupDropLabel}`,
       `Pickup Charge: INR ${pickupCharge}`,
       `Drop Charge: INR ${dropCharge}`,
-      `Measurements: Bust ${formData.bust || "-"}, Waist ${formData.waist || "-"}, Length ${formData.length || "-"}`,
+      `Measurements: Bust ${formData.bust || "-"}, Waist ${formData.waist || "-"}, Hip ${formData.hip || "-"}, Shoulder ${formData.shoulder || "-"}, Sleeve ${formData.sleeveLength || "-"}, Kurti Length ${formData.kurtiLength || "-"}, Pant Length ${formData.pantLength || "-"}`,
       `Extra Measurement: ${formData.extraMeasurement || "-"}`,
       ...fabricSummaryLines,
     ];
-  }, [fabricSummaryLines, formData.bust, formData.category, formData.customSizeNotes, formData.design, formData.extraMeasurement, formData.length, formData.pickupDropOption, formData.size, formData.waist]);
+  }, [fabricSummaryLines, formData.bust, formData.category, formData.customSizeNotes, formData.design, formData.extraMeasurement, formData.hip, formData.kurtiLength, formData.pantLength, formData.pickupDropOption, formData.shoulder, formData.size, formData.sleeveLength, formData.waist]);
 
   const validationMessage = useMemo(() => {
     return getTailoringValidationMessage({
@@ -531,6 +592,11 @@ export default function TailoringForm() {
       const chestValue = parseMeasurementNumber(formData.bust);
       const waistValue = parseMeasurementNumber(formData.waist);
       const lengthValue = parseMeasurementNumber(formData.length);
+      const hipValue = parseMeasurementNumber(formData.hip);
+      const shoulderValue = parseMeasurementNumber(formData.shoulder);
+      const sleeveLengthValue = parseMeasurementNumber(formData.sleeveLength);
+      const kurtiLengthValue = parseMeasurementNumber(formData.kurtiLength);
+      const pantLengthValue = parseMeasurementNumber(formData.pantLength);
       const pickupCharge = formData.pickupDropOption === "pickup_only" || formData.pickupDropOption === "pickup_drop"
         ? DEFAULT_PICKUP_CHARGE
         : 0;
@@ -576,15 +642,24 @@ export default function TailoringForm() {
                 chest: chestValue,
                 waist: waistValue,
                 length: lengthValue,
+                hip: hipValue,
+                shoulder: shoulderValue,
+                sleeve_length: sleeveLengthValue,
+                kurti_length: kurtiLengthValue,
+                pant_length: pantLengthValue,
                 is_customized: isCustomized,
                 work_type: workType,
                 pickup_drop_option: formData.pickupDropOption,
                 pickup_charge: pickupCharge,
                 drop_charge: dropCharge,
                 measurements: {
-                  bust: formData.bust || "-",
-                  waist: formData.waist || "-",
-                  length: formData.length || "-",
+                  bust: chestValue,
+                  waist: waistValue,
+                  hip: hipValue,
+                  shoulder: shoulderValue,
+                  sleeveLength: sleeveLengthValue,
+                  kurtiLength: kurtiLengthValue,
+                  pantLength: pantLengthValue,
                   extraMeasurement: formData.extraMeasurement || "-",
                 },
                 fabricDetails: fabricDetails || {
@@ -657,6 +732,11 @@ export default function TailoringForm() {
       customSizeNotes: prev.customSizeNotes || savedProfile.customSizeNotes,
       bust: prev.bust || savedProfile.bust,
       waist: prev.waist || savedProfile.waist,
+      hip: prev.hip || savedProfile.hip || "",
+      shoulder: prev.shoulder || savedProfile.shoulder || "",
+      sleeveLength: prev.sleeveLength || savedProfile.sleeveLength || "",
+      kurtiLength: prev.kurtiLength || savedProfile.kurtiLength || "",
+      pantLength: prev.pantLength || savedProfile.pantLength || "",
       length: prev.length || savedProfile.length,
       extraMeasurement: prev.extraMeasurement || savedProfile.extraMeasurement,
     }));
@@ -668,6 +748,11 @@ export default function TailoringForm() {
       || formData.customSizeNotes.trim()
       || formData.bust.trim()
       || formData.waist.trim()
+      || formData.hip.trim()
+      || formData.shoulder.trim()
+      || formData.sleeveLength.trim()
+      || formData.kurtiLength.trim()
+      || formData.pantLength.trim()
       || formData.length.trim()
       || formData.extraMeasurement.trim(),
     );
@@ -682,6 +767,11 @@ export default function TailoringForm() {
       customSizeNotes: formData.customSizeNotes.trim(),
       bust: formData.bust.trim(),
       waist: formData.waist.trim(),
+      hip: formData.hip.trim(),
+      shoulder: formData.shoulder.trim(),
+      sleeveLength: formData.sleeveLength.trim(),
+      kurtiLength: formData.kurtiLength.trim(),
+      pantLength: formData.pantLength.trim(),
       length: formData.length.trim(),
       extraMeasurement: formData.extraMeasurement.trim(),
       measurements: "",
@@ -705,6 +795,11 @@ export default function TailoringForm() {
       customSizeNotes: savedProfile.customSizeNotes,
       bust: savedProfile.bust,
       waist: savedProfile.waist,
+      hip: savedProfile.hip || "",
+      shoulder: savedProfile.shoulder || "",
+      sleeveLength: savedProfile.sleeveLength || "",
+      kurtiLength: savedProfile.kurtiLength || "",
+      pantLength: savedProfile.pantLength || "",
       length: savedProfile.length,
       extraMeasurement: savedProfile.extraMeasurement,
     }));
@@ -861,28 +956,106 @@ export default function TailoringForm() {
                     <TextField
                       label="Bust"
                       fullWidth
+                      type="number"
+                      inputProps={{ min: 1, step: "0.1" }}
                       value={formData.bust}
                       onChange={(event) => {
                         setIsAutoSuggestedMeasurement(false);
                         updateField("bust", event.target.value);
                       }}
+                      required
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 4 }}>
                     <TextField
                       label="Waist"
                       fullWidth
+                      type="number"
+                      inputProps={{ min: 1, step: "0.1" }}
                       value={formData.waist}
                       onChange={(event) => {
                         setIsAutoSuggestedMeasurement(false);
                         updateField("waist", event.target.value);
                       }}
+                      required
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      label="Hip"
+                      fullWidth
+                      type="number"
+                      inputProps={{ min: 1, step: "0.1" }}
+                      value={formData.hip}
+                      onChange={(event) => {
+                        setIsAutoSuggestedMeasurement(false);
+                        updateField("hip", event.target.value);
+                      }}
+                      required
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      label="Shoulder"
+                      fullWidth
+                      type="number"
+                      inputProps={{ min: 1, step: "0.1" }}
+                      value={formData.shoulder}
+                      onChange={(event) => {
+                        setIsAutoSuggestedMeasurement(false);
+                        updateField("shoulder", event.target.value);
+                      }}
+                      required
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      label="Sleeve Length"
+                      fullWidth
+                      type="number"
+                      inputProps={{ min: 1, step: "0.1" }}
+                      value={formData.sleeveLength}
+                      onChange={(event) => {
+                        setIsAutoSuggestedMeasurement(false);
+                        updateField("sleeveLength", event.target.value);
+                      }}
+                      required
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      label="Kurti Length"
+                      fullWidth
+                      type="number"
+                      inputProps={{ min: 1, step: "0.1" }}
+                      value={formData.kurtiLength}
+                      onChange={(event) => {
+                        setIsAutoSuggestedMeasurement(false);
+                        updateField("kurtiLength", event.target.value);
+                      }}
+                      required
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      label="Salwar/Pant Length"
+                      fullWidth
+                      type="number"
+                      inputProps={{ min: 1, step: "0.1" }}
+                      value={formData.pantLength}
+                      onChange={(event) => {
+                        setIsAutoSuggestedMeasurement(false);
+                        updateField("pantLength", event.target.value);
+                      }}
+                      required
                     />
                   </Grid>
                   <Grid size={{ xs: 12, md: 4 }}>
                     <TextField
                       label="Length"
                       fullWidth
+                      type="number"
+                      inputProps={{ min: 1, step: "0.1" }}
                       value={formData.length}
                       onChange={(event) => {
                         setIsAutoSuggestedMeasurement(false);
@@ -973,13 +1146,15 @@ export default function TailoringForm() {
                         value={formData.fabricType}
                         onChange={(event) => updateField("fabricType", event.target.value)}
                       >
-                        <MenuItem value="cotton">Cotton</MenuItem>
-                        <MenuItem value="silk">Silk</MenuItem>
-                        <MenuItem value="georgette">Georgette</MenuItem>
-                        <MenuItem value="rayon">Rayon</MenuItem>
-                        <MenuItem value="linen">Linen</MenuItem>
-                        <MenuItem value="chiffon">Chiffon</MenuItem>
+                        {tailoringFabricOptions.map((option) => (
+                          <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                        ))}
                       </TextField>
+                      {selectedFabricOption ? (
+                        <Typography variant="caption" color="text.secondary">
+                          {selectedFabricOption.description}
+                        </Typography>
+                      ) : null}
                     </Grid>
                     <Grid size={{ xs: 12, md: 4 }}>
                       <TextField
@@ -1011,6 +1186,19 @@ export default function TailoringForm() {
                         value={formData.fabricName}
                         onChange={(event) => updateField("fabricName", event.target.value)}
                       />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <TextField
+                        select
+                        fullWidth
+                        label="Fabric type"
+                        value={formData.fabricType}
+                        onChange={(event) => updateField("fabricType", event.target.value)}
+                      >
+                        {tailoringFabricOptions.map((option) => (
+                          <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                        ))}
+                      </TextField>
                     </Grid>
                     <Grid size={{ xs: 12, md: 6 }}>
                       <TextField

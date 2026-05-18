@@ -7,6 +7,11 @@ export type TailoringValidationInput = {
     customSizeNotes: string;
     bust: string;
     waist: string;
+    hip: string;
+    shoulder: string;
+    sleeveLength: string;
+    kurtiLength: string;
+    pantLength: string;
     length: string;
     fabricSource: "" | "own" | "external" | "rkstudio";
     fabricType: string;
@@ -19,6 +24,21 @@ export type TailoringValidationInput = {
 };
 
 export const getTailoringValidationMessage = ({ activeStep, formData }: TailoringValidationInput) => {
+  const requiredMeasurements = [
+    formData.bust,
+    formData.waist,
+    formData.hip,
+    formData.shoulder,
+    formData.sleeveLength,
+    formData.kurtiLength,
+    formData.pantLength,
+  ];
+
+  const hasInvalidMeasurement = requiredMeasurements.some((value) => {
+    const normalized = Number(value);
+    return !Number.isFinite(normalized) || normalized <= 0;
+  });
+
   if (activeStep === 0 && !formData.category) return "Select a tailoring category.";
   if (activeStep === 1 && !formData.design) return "Select a design.";
   if (activeStep === 2 && formData.size === "Custom Size" && !formData.customSizeNotes.trim()) {
@@ -27,8 +47,11 @@ export const getTailoringValidationMessage = ({ activeStep, formData }: Tailorin
   if (activeStep === 2 && formData.size === "Custom Size" && formData.customSizeNotes.trim().length > 500) {
     return "Keep custom size details under 500 characters.";
   }
-  if (activeStep === 2 && (!formData.bust || !formData.waist || !formData.length)) {
-    return "Enter required measurements.";
+  if (activeStep === 2 && requiredMeasurements.some((value) => !value)) {
+    return "Enter all required measurements.";
+  }
+  if (activeStep === 2 && hasInvalidMeasurement) {
+    return "All measurements must be numeric values greater than 0.";
   }
   if (activeStep === 3 && !formData.fabricSource) return "Select a fabric source.";
   if (activeStep === 3 && formData.fabricSource === "own" && (!formData.fabricType || !formData.fabricColor)) {

@@ -22,6 +22,7 @@ import { AppUser, subscribeToUser } from "@/services/userService";
 import { removeFabricCartItem, removeFabricCartItems } from "@/utils/fabricCart";
 import { clearPendingPaymentOrder, readPendingPaymentOrder } from "@/utils/paymentSession";
 import { PricingBreakdown, calculatePricingBreakdown } from "@/utils/pricing";
+import { buildWhatsAppChatUrl, formatPhone } from "@/utils/whatsapp";
 
 type FinalizeResponse = {
   success?: boolean;
@@ -31,14 +32,17 @@ type FinalizeResponse = {
 };
 
 type PricingApiResponse = {
+  success?: boolean;
   total?: number;
-  breakdown?: Array<{
-    label: string;
-    amount: number;
-  }>;
+  breakdown?: {
+    basePrice: number;
+    pickupCharge: number;
+    dropCharge: number;
+    finalPayable: number;
+  };
   pricingBreakdown?: PricingBreakdown;
   error?: string;
-  fallbackUsed?: boolean;
+  fallback?: boolean;
 };
 
 const toSafePricingBreakdown = (
@@ -86,6 +90,8 @@ export default function CheckoutPage() {
   const [toastMessage, setToastMessage] = useState("");
   const [toastSeverity, setToastSeverity] = useState<"success" | "error">("success");
   const submitLockRef = useRef(false);
+  const supportPhone = formatPhone("9198901501572");
+  const supportUrl = buildWhatsAppChatUrl(supportPhone, "Hi, I need help with my order");
 
   useEffect(() => {
     if (!token) {
@@ -125,19 +131,15 @@ export default function CheckoutPage() {
         const dropCharge = typeof pendingOrder.orderDetails?.drop_charge === "number"
           ? Math.max(0, pendingOrder.orderDetails.drop_charge)
           : 0;
-        const selectedProductId = pendingOrder.pricingInput?.productId
-          || pendingOrder.productId
-          || (typeof pendingOrder.orderDetails?.productId === "string" ? pendingOrder.orderDetails.productId : "")
-          || undefined;
-        const selectedProduct = selectedProductId
+        const product = (pendingOrder.pricingInput?.productId || pendingOrder.productId)
           ? {
-            id: selectedProductId,
+            id: pendingOrder.pricingInput?.productId || pendingOrder.productId,
             pricingType: pendingOrder.pricingInput?.pricingType
               || (pendingOrder.service === "fabric" ? "meter" : "piece"),
           }
           : null;
 
-        console.log("CHECKOUT PRODUCT:", selectedProduct);
+        console.log("CHECKOUT PRODUCT:", product);
 
         const response = await fetch("/api/pricing/calculate", {
           method: "POST",
@@ -145,7 +147,7 @@ export default function CheckoutPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            productId: selectedProduct?.id,
+            productId: product?.id,
             paymentType: pendingOrder.paymentType,
             pricingType: pendingOrder.pricingInput?.pricingType,
             quantityOrMeter: pendingOrder.pricingInput?.quantityOrMeter,
@@ -165,7 +167,7 @@ export default function CheckoutPage() {
 
         if (!ignore) {
           setPricingBreakdown(resolvedBreakdown);
-          setPricingNotice(payload.fallbackUsed
+          setPricingNotice(payload.fallback
             ? "Pricing service was temporarily unavailable. Estimated quote is shown."
             : "");
           setError("");
@@ -434,6 +436,16 @@ export default function CheckoutPage() {
                   <Typography variant="body2" color="text.secondary">
                     Payment Type: {pendingOrder.paymentType === "advance" ? "Advance" : "Full"}
                   </Typography>
+                  {pendingOrder.orderDetails?.measurements ? (
+                    <Typography variant="body2" color="text.secondary">
+                      Measurements: {JSON.stringify(pendingOrder.orderDetails.measurements)}
+                    </Typography>
+                  ) : null}
+                  {typeof pendingOrder.orderDetails?.fabricDetails === "object" && pendingOrder.orderDetails?.fabricDetails ? (
+                    <Typography variant="body2" color="text.secondary">
+                      Fabric: {String((pendingOrder.orderDetails.fabricDetails as Record<string, unknown>).fabricType || (pendingOrder.orderDetails.fabricDetails as Record<string, unknown>).productName || "-")}
+                    </Typography>
+                  ) : null}
                 </Stack>
               ) : null}
 
@@ -477,14 +489,15 @@ export default function CheckoutPage() {
                 </Button>
                 <Button
                   component="a"
-                  href="https://wa.me/9198901501572?text=I%20need%20help%20with%20my%20order"
+                  href={supportUrl || undefined}
                   target="_self"
                   variant="outlined"
                   color="success"
+                  disabled={!supportUrl}
                   fullWidth
                   sx={{ minHeight: 44 }}
                 >
-                  Need Help?
+                  {supportUrl ? "Need Help?" : "Support number unavailable"}
                 </Button>
                 {orderFailed ? (
                   <Button variant="outlined" color="warning" onClick={handlePlaceOrder} disabled={submitting} fullWidth sx={{ minHeight: 44 }}>

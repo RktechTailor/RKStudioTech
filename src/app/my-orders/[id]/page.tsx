@@ -17,6 +17,7 @@ import Layout from "@/components/layout/Layout";
 import OrderTimeline from "@/components/orders/OrderTimeline";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrders } from "@/hooks/useOrders";
+import { buildWhatsAppChatUrl, formatPhone } from "@/utils/whatsapp";
 
 const formatDate = (date?: { toDate?: () => Date } | null) => {
   if (!date || typeof date.toDate !== "function") {
@@ -44,6 +45,12 @@ export default function MyOrderDetailsPage() {
   const { orders, loading, error } = useOrders({ mode: "phone", phone: user?.phoneNumber || "" });
 
   const order = orders.find((item) => item.id === orderId);
+  const supportPhone = formatPhone("9198901501572");
+  const supportUrl = order
+    ? buildWhatsAppChatUrl(supportPhone, `I need help with order ID ${order.id}`)
+    : "";
+  const measurements = order?.orderDetails?.measurements;
+  const fabricDetails = order?.orderDetails?.fabricDetails;
 
   return (
     <Layout>
@@ -86,6 +93,16 @@ export default function MyOrderDetailsPage() {
                 <Typography variant="body2" color="text.secondary">
                   Total: INR {Number(order.total || order.finalPayable || order.finalPrice || order.totalPrice || 0)}
                 </Typography>
+                {measurements && typeof measurements === "object" ? (
+                  <Typography variant="body2" color="text.secondary">
+                    Measurements: {JSON.stringify(measurements)}
+                  </Typography>
+                ) : null}
+                {fabricDetails && typeof fabricDetails === "object" ? (
+                  <Typography variant="body2" color="text.secondary">
+                    Fabric: {String((fabricDetails as Record<string, unknown>).fabricType || (fabricDetails as Record<string, unknown>).productName || "-")}
+                  </Typography>
+                ) : null}
 
                 <Divider />
 
@@ -101,19 +118,21 @@ export default function MyOrderDetailsPage() {
                 </Box>
 
                 <a
-                  href={`https://wa.me/9198901501572?text=${encodeURIComponent(`I need help with order ID ${order.id}`)}`}
+                  href={supportUrl || undefined}
                   target="_self"
+                  aria-disabled={!supportUrl}
                   style={{
                     display: "inline-block",
                     padding: "12px 20px",
-                    backgroundColor: "#25D366",
+                    backgroundColor: supportUrl ? "#25D366" : "#94A3B8",
                     color: "#fff",
                     borderRadius: "8px",
                     textDecoration: "none",
                     fontWeight: "bold",
+                    pointerEvents: supportUrl ? "auto" : "none",
                   }}
                 >
-                  Contact Tailor (Optional)
+                  {supportUrl ? "Contact Tailor (Optional)" : "Support number unavailable"}
                 </a>
               </Stack>
             </CardContent>

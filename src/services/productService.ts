@@ -547,10 +547,9 @@ export const fetchProducts = async () => {
 
     console.log("PRODUCT COUNT:", snap.size);
 
-    const products = snap.docs.map((productDoc) => ({
-      id: productDoc.id,
-      ...productDoc.data(),
-    })) as CatalogProduct[];
+    const products = snap.docs.map((productDoc) =>
+      toProduct(productDoc.id, productDoc.data() as Partial<CatalogProduct>),
+    );
 
     snap.forEach((productDoc) => {
       console.log("DOC:", productDoc.id, productDoc.data());

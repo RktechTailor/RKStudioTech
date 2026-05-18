@@ -8,6 +8,11 @@ const baseFormData = {
   customSizeNotes: "",
   bust: "36",
   waist: "32",
+  hip: "38",
+  shoulder: "14",
+  sleeveLength: "21",
+  kurtiLength: "44",
+  pantLength: "38",
   length: "44",
   fabricSource: "own" as const,
   fabricType: "cotton",
@@ -41,7 +46,19 @@ describe("getTailoringValidationMessage", () => {
       },
     });
 
-    expect(message).toBe("Enter required measurements.");
+    expect(message).toBe("Enter all required measurements.");
+  });
+
+  it("returns validation error when measurements are not greater than 0", () => {
+    const message = getTailoringValidationMessage({
+      activeStep: 2,
+      formData: {
+        ...baseFormData,
+        hip: "0",
+      },
+    });
+
+    expect(message).toBe("All measurements must be numeric values greater than 0.");
   });
 
   it("returns validation error when custom size details exceed maximum length", () => {

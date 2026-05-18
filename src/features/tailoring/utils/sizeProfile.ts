@@ -3,6 +3,11 @@ export type TailoringSizeProfile = {
   customSizeNotes: string;
   bust: string;
   waist: string;
+  hip?: string;
+  shoulder?: string;
+  sleeveLength?: string;
+  kurtiLength?: string;
+  pantLength?: string;
   length: string;
   extraMeasurement: string;
   measurements: string;
@@ -43,6 +48,11 @@ export const readTailoringSizeProfile = (): TailoringSizeProfile | null => {
       customSizeNotes: toSafeString(parsed.customSizeNotes),
       bust: toSafeString(parsed.bust),
       waist: toSafeString(parsed.waist),
+      hip: toSafeString(parsed.hip),
+      shoulder: toSafeString(parsed.shoulder),
+      sleeveLength: toSafeString(parsed.sleeveLength),
+      kurtiLength: toSafeString(parsed.kurtiLength),
+      pantLength: toSafeString(parsed.pantLength),
       length: toSafeString(parsed.length),
       extraMeasurement: toSafeString(parsed.extraMeasurement),
       measurements: toSafeString(parsed.measurements),

@@ -23,6 +23,7 @@ import OrderTimeline from "@/components/orders/OrderTimeline";
 import { useAuth } from "@/hooks/useAuth";
 import { getOrderStatusMessage, OrderStatus, normalizeOrderStatus } from "@/services/orderService";
 import { useOrders } from "@/hooks/useOrders";
+import { buildWhatsAppChatUrl, formatPhone } from "@/utils/whatsapp";
 
 const getStatusColor = (status: OrderStatus) => {
   if (status === "pending") return "warning" as const;
@@ -61,6 +62,9 @@ export default function MyOrdersPage() {
   const { user } = useAuth();
   const { orders, loading, error } = useOrders({ mode: "phone", phone: user?.phoneNumber || "" });
   const latestOrder = orders[0];
+  const supportPhone = formatPhone("9198901501572");
+  const readyOrderHelpUrl = buildWhatsAppChatUrl(supportPhone, "My order is ready. Please share delivery details");
+  const genericHelpUrl = buildWhatsAppChatUrl(supportPhone, "Hi, I need help with my order");
 
   return (
     <Layout>
@@ -144,26 +148,28 @@ export default function MyOrdersPage() {
                 {latestOrder && normalizeOrderStatus(latestOrder.status) === "ready" ? (
                   <Button
                     component="a"
-                    href="https://wa.me/9198901501572?text=My%20order%20is%20ready.%20Please%20share%20delivery%20details"
+                    href={readyOrderHelpUrl || undefined}
                     target="_self"
                     variant="contained"
                     color="success"
+                    disabled={!readyOrderHelpUrl}
                     fullWidth
                     sx={{ minHeight: 44 }}
                   >
-                    Contact Tailor on WhatsApp
+                    {readyOrderHelpUrl ? "Contact Tailor on WhatsApp" : "Support number unavailable"}
                   </Button>
                 ) : null}
                 <Button
                   component="a"
-                  href="https://wa.me/9198901501572?text=I%20need%20help%20with%20my%20order"
+                  href={genericHelpUrl || undefined}
                   target="_self"
                   variant="outlined"
                   color="success"
+                  disabled={!genericHelpUrl}
                   fullWidth
                   sx={{ minHeight: 44 }}
                 >
-                  Need Help?
+                  {genericHelpUrl ? "Need Help?" : "Support number unavailable"}
                 </Button>
               </Stack>
             ) : null}

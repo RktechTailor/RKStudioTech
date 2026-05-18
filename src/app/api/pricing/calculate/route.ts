@@ -21,6 +21,19 @@ type PricingRequestInput = {
   paymentType?: "advance" | "full";
 };
 
+type PricingApiResponse = {
+  success: true;
+  total: number;
+  breakdown: {
+    basePrice: number;
+    pickupCharge: number;
+    dropCharge: number;
+    finalPayable: number;
+  };
+  fallback: boolean;
+  pricingBreakdown: PricingBreakdown;
+};
+
 type PricingProduct = {
   price: number;
   marketPrice?: number;
@@ -59,20 +72,6 @@ const buildPricingFromProduct = (
   discountPercentage: product.discountPercentage ?? 0,
   advancePercentage: product.advancePercentage ?? 20,
 });
-
-const toBreakdownLines = (breakdown: PricingBreakdown) => {
-  const lines = [{ label: "Base Price", amount: breakdown.finalPrice }];
-
-  if (breakdown.pickupCharge > 0) {
-    lines.push({ label: "Pickup Charge", amount: breakdown.pickupCharge });
-  }
-
-  if (breakdown.dropCharge > 0) {
-    lines.push({ label: "Drop Charge", amount: breakdown.dropCharge });
-  }
-
-  return lines;
-};
 
 const getProductForPricing = async (productId: string): Promise<PricingProduct | null> => {
   const normalizedProductId = productId.trim();
@@ -174,11 +173,20 @@ export async function POST(request: NextRequest) {
         ? pricingBreakdown.advanceAmount
         : pricingBreakdown.finalPayable;
 
-      return NextResponse.json({
+      const response: PricingApiResponse = {
+        success: true,
         total,
-        breakdown: toBreakdownLines(pricingBreakdown),
+        breakdown: {
+          basePrice: pricingBreakdown.finalPrice,
+          pickupCharge: pricingBreakdown.pickupCharge,
+          dropCharge: pricingBreakdown.dropCharge,
+          finalPayable: pricingBreakdown.finalPayable,
+        },
+        fallback: false,
         pricingBreakdown,
-      });
+      };
+
+      return NextResponse.json(response, { status: 200 });
     }
 
     if (!input.productId) {
@@ -204,11 +212,20 @@ export async function POST(request: NextRequest) {
       ? pricingBreakdown.advanceAmount
       : pricingBreakdown.finalPayable;
 
-    return NextResponse.json({
+    const response: PricingApiResponse = {
+      success: true,
       total,
-      breakdown: toBreakdownLines(pricingBreakdown),
+      breakdown: {
+        basePrice: pricingBreakdown.finalPrice,
+        pickupCharge: pricingBreakdown.pickupCharge,
+        dropCharge: pricingBreakdown.dropCharge,
+        finalPayable: pricingBreakdown.finalPayable,
+      },
+      fallback: false,
       pricingBreakdown,
-    });
+    };
+
+    return NextResponse.json(response, { status: 200 });
   } catch (error) {
     console.error("PRICING ERROR:", error);
 
@@ -221,13 +238,19 @@ export async function POST(request: NextRequest) {
       advancePercentage: 20,
     });
 
-    return NextResponse.json({
+    const fallbackResponse: PricingApiResponse = {
+      success: true,
       total: 100,
-      breakdown: [
-        { label: "Fallback Price", amount: 100 },
-      ],
+      breakdown: {
+        basePrice: 100,
+        pickupCharge: 0,
+        dropCharge: 0,
+        finalPayable: 100,
+      },
+      fallback: true,
       pricingBreakdown,
-      fallbackUsed: true,
-    });
+    };
+
+    return NextResponse.json(fallbackResponse, { status: 200 });
   }
 }

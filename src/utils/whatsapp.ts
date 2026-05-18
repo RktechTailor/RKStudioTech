@@ -28,6 +28,20 @@ type UserOrderStatusWhatsAppInput = {
 
 const WHATSAPP_NUMBER = RK_STUDIO.whatsappNumber;
 
+export const formatPhone = (phone?: string | null) => {
+  return (phone || "").replace(/\D/g, "");
+};
+
+export const buildWhatsAppChatUrl = (phone: string | null | undefined, message: string) => {
+  const normalizedPhone = formatPhone(phone);
+
+  if (!normalizedPhone) {
+    return "";
+  }
+
+  return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
+};
+
 const buildOrderMessage = ({ name, phone, service, details }: SendToWhatsAppInput) => {
   const detailLines = Array.isArray(details) ? details : [`Details: ${details}`];
 
@@ -82,7 +96,7 @@ export const sendToWhatsApp = (input: SendToWhatsAppInput) => {
   return true;
 };
 
-const sanitizePhone = (phone: string) => phone.replace(/\D/g, "");
+const sanitizePhone = (phone: string) => formatPhone(phone);
 
 export const buildAdminOrderWhatsAppUrl = (input: AdminOrderWhatsAppInput) => {
   const adminPhone = RK_STUDIO.adminPhone || RK_STUDIO.whatsappNumber;
