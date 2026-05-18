@@ -28,13 +28,13 @@ import {
   normalizeIndianPhone,
   saveMockUserToFirestore,
   sendOtpToPhone,
+  useMockOtp,
   verifyMockOtp,
   verifyOtpAndSaveUser,
 } from "@/services/authService";
 import { UserRole } from "@/types/auth";
 import { isAdminPhone } from "@/utils/admin";
 import { RK_STUDIO } from "@/utils/constants";
-import { getEnvBool } from "@/utils/env";
 
 const mapOtpErrorMessage = (error: unknown) => {
   if (!(error instanceof FirebaseError)) {
@@ -85,7 +85,7 @@ export default function LoginPage() {
   const { user, loading, setMockSession } = useAuth();
   const { trackAsync } = useGlobalLoading();
   const [firebaseConfigured, setFirebaseConfigured] = useState<boolean | null>(null);
-  const USE_MOCK_OTP = getEnvBool(process.env.NEXT_PUBLIC_USE_MOCK_OTP);
+  const USE_MOCK_OTP = useMockOtp;
   const nextParam = searchParams.get("next");
 
   const getSafeNext = () => {
