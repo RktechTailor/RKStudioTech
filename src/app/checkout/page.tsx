@@ -46,15 +46,6 @@ export default function CheckoutPage() {
     },
   };
 
-  const openExternalLink = (url: string, source: string) => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    console.info("[checkout] opening external link", { source, url });
-    window.location.href = url;
-  };
-
     useEffect(() => {
     if (!token) {
       setError("Payment session not found. Please start your order again.");
@@ -500,7 +491,9 @@ export default function CheckoutPage() {
           amount: finalAmount,
           note: `${pendingOrder.service} payment`,
         });
-        openExternalLink(upiLink, "upi");
+        if (typeof window !== "undefined") {
+          window.location.href = upiLink;
+        }
         setUpiStarted(true);
         setError("After UPI payment, enter the UTR/reference and confirm again.");
         return;
@@ -712,15 +705,16 @@ export default function CheckoutPage() {
                   {submitting ? "Processing..." : "Pay and Confirm"}
                 </Button>
                 <a
-                  href="https://wa.me/919XXXXXXXXX?text=Hello%20I%20want%20to%20complete%20my%20order"
+                  href="https://wa.me/9198901501572?text=I%20want%20to%20continue%20my%20order"
                   target="_self"
                   style={{
                     display: "inline-block",
-                    padding: "10px 16px",
+                    padding: "12px 20px",
                     backgroundColor: "#25D366",
                     color: "#fff",
-                    borderRadius: "6px",
+                    borderRadius: "8px",
                     textDecoration: "none",
+                    fontWeight: "bold",
                   }}
                 >
                   Continue via WhatsApp Payment
