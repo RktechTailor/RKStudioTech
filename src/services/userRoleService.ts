@@ -13,6 +13,10 @@ type ResolveRoleInput = {
 };
 
 export const resolveUserRoleFromFirestore = async ({ uid, phoneNumber }: ResolveRoleInput) => {
+  if (isAdminPhone(phoneNumber)) {
+    return "admin" as const;
+  }
+
   const db = getFirebaseDb();
 
   if (!db) {
@@ -32,7 +36,6 @@ export const resolveUserRoleFromFirestore = async ({ uid, phoneNumber }: Resolve
       }
     }
 
-    void phoneNumber;
     return "user" as const;
   } catch (error) {
     console.error("[role] resolve failed", error);

@@ -317,7 +317,12 @@ export default function CheckoutPage() {
         }
 
         if (!ignore) {
-          setPricingBreakdown(resolvedBreakdown);
+          // Use payload.total directly for display and order placement
+          setPricingBreakdown(
+            typeof payload.total === "number"
+              ? toSafePricingBreakdown(pendingOrder, payload.total)
+              : resolvedBreakdown
+          );
           setPricingNotice(payload.fallback
             ? "Pricing service was temporarily unavailable. Estimated quote is shown."
             : "");

@@ -261,7 +261,7 @@ export const fetchAllOrders = async (): Promise<UserOrder[]> => {
   }
 
   try {
-    const snapshot = await getDocs(collection(db, "orders"));
+    const snapshot = await getDocs(query(collection(db, "orders"), orderBy("createdAt", "desc")));
     const orders = snapshot.docs.map((orderDoc) => {
       const data = orderDoc.data() as Omit<UserOrder, "id">;
 
@@ -295,12 +295,6 @@ export const fetchAllOrders = async (): Promise<UserOrder[]> => {
         assignedTo: data.assignedTo || null,
         createdAt: data.createdAt || null,
       };
-    });
-
-    orders.sort((a, b) => {
-      const aMillis = a.createdAt?.toMillis?.() ?? 0;
-      const bMillis = b.createdAt?.toMillis?.() ?? 0;
-      return bMillis - aMillis;
     });
 
     return orders;

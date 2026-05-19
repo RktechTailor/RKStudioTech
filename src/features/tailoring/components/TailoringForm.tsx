@@ -575,7 +575,7 @@ export default function TailoringForm() {
       `Pickup/Drop: ${pickupDropLabel}`,
       `Pickup Charge: INR ${pickupCharge}`,
       `Drop Charge: INR ${dropCharge}`,
-      `Measurements: Bust ${formData.bust || "-"}, Waist ${formData.waist || "-"}, Hip ${formData.hip || "-"}, Shoulder ${formData.shoulder || "-"}, Sleeve ${formData.sleeveLength || "-"}, Kurti Length ${formData.kurtiLength || "-"}, Pant Length ${formData.pantLength || "-"}`,
+      `Measurements: ${MEASUREMENT_FIELDS.map(f => `${f.label} ${formData[f.key as keyof TailoringFormData] || "-"}`).join(", ")}`,
       `Extra Measurement: ${formData.extraMeasurement || "-"}`,
       ...fabricSummaryLines,
     ];
@@ -674,13 +674,10 @@ export default function TailoringForm() {
                 pickup_charge: pickupCharge,
                 drop_charge: dropCharge,
                 measurements: {
-                  bust: chestValue,
-                  waist: waistValue,
-                  hip: hipValue,
-                  shoulder: shoulderValue,
-                  sleeveLength: sleeveLengthValue,
-                  kurtiLength: kurtiLengthValue,
-                  pantLength: pantLengthValue,
+                  ...MEASUREMENT_FIELDS.reduce((acc, field) => {
+                    acc[field.label] = formData[field.key] || "-";
+                    return acc;
+                  }, {} as Record<string, string | number>),
                   extraMeasurement: formData.extraMeasurement || "-",
                 },
                 fabricDetails: fabricDetails || {
@@ -1022,104 +1019,22 @@ export default function TailoringForm() {
                       />
                     </Grid>
                   ) : null}
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField
-                      label="Bust"
-                      fullWidth
-                      type="number"
-                      inputProps={{ min: 1, step: "0.1" }}
-                      value={formData.bust}
-                      onChange={(event) => {
-                        setIsAutoSuggestedMeasurement(false);
-                        updateField("bust", event.target.value);
-                      }}
-                      required
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField
-                      label="Waist"
-                      fullWidth
-                      type="number"
-                      inputProps={{ min: 1, step: "0.1" }}
-                      value={formData.waist}
-                      onChange={(event) => {
-                        setIsAutoSuggestedMeasurement(false);
-                        updateField("waist", event.target.value);
-                      }}
-                      required
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField
-                      label="Hip"
-                      fullWidth
-                      type="number"
-                      inputProps={{ min: 1, step: "0.1" }}
-                      value={formData.hip}
-                      onChange={(event) => {
-                        setIsAutoSuggestedMeasurement(false);
-                        updateField("hip", event.target.value);
-                      }}
-                      required
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField
-                      label="Shoulder"
-                      fullWidth
-                      type="number"
-                      inputProps={{ min: 1, step: "0.1" }}
-                      value={formData.shoulder}
-                      onChange={(event) => {
-                        setIsAutoSuggestedMeasurement(false);
-                        updateField("shoulder", event.target.value);
-                      }}
-                      required
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField
-                      label="Sleeve Length"
-                      fullWidth
-                      type="number"
-                      inputProps={{ min: 1, step: "0.1" }}
-                      value={formData.sleeveLength}
-                      onChange={(event) => {
-                        setIsAutoSuggestedMeasurement(false);
-                        updateField("sleeveLength", event.target.value);
-                      }}
-                      required
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField
-                      label="Kurti Length"
-                      fullWidth
-                      type="number"
-                      inputProps={{ min: 1, step: "0.1" }}
-                      value={formData.kurtiLength}
-                      onChange={(event) => {
-                        setIsAutoSuggestedMeasurement(false);
-                        updateField("kurtiLength", event.target.value);
-                      }}
-                      required
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField
-                      label="Salwar/Pant Length"
-                      fullWidth
-                      type="number"
-                      inputProps={{ min: 1, step: "0.1" }}
-                      value={formData.pantLength}
-                      onChange={(event) => {
-                        setIsAutoSuggestedMeasurement(false);
-                        updateField("pantLength", event.target.value);
-                      }}
-                      required
-                    />
-                  </Grid>
+                  {MEASUREMENT_FIELDS.map((field) => (
+                    <Grid key={field.key} size={{ xs: 12, md: 4 }}>
+                      <TextField
+                        label={field.label}
+                        fullWidth
+                        type="number"
+                        inputProps={{ min: 1, step: "0.1" }}
+                        value={formData[field.key as keyof TailoringFormData]}
+                        onChange={(event) => {
+                          setIsAutoSuggestedMeasurement(false);
+                          updateField(field.key as keyof TailoringFormData, event.target.value);
+                        }}
+                        required
+                      />
+                    </Grid>
+                  ))}
                   <Grid size={{ xs: 12, md: 4 }}>
                     <TextField
                       label="Length"
@@ -1670,7 +1585,7 @@ export default function TailoringForm() {
                             : "No Pickup (Self Visit)"}
                     </Typography>
                     <Typography variant="body2">
-                      Measurements: Bust {formData.bust || "-"}, Waist {formData.waist || "-"}, Length {formData.length || "-"}
+                      Measurements: ${MEASUREMENT_FIELDS.map(f => `${f.label} ${formData[f.key as keyof TailoringFormData] || "-"}`).join(", ")}
                     </Typography>
                     <Typography variant="body2">Extra Measurement: {formData.extraMeasurement || "-"}</Typography>
                     {fabricSummaryLines.map((line) => (
@@ -1709,3 +1624,14 @@ export default function TailoringForm() {
     </Card>
   );
 }
+
+// Unified measurement list
+const MEASUREMENT_FIELDS: { key: keyof TailoringFormData; label: string }[] = [
+  { key: "bust", label: "Bust/Chest" },
+  { key: "waist", label: "Waist" },
+  { key: "hip", label: "Hip" },
+  { key: "shoulder", label: "Shoulder" },
+  { key: "sleeveLength", label: "Sleeve Length" },
+  { key: "kurtiLength", label: "Kurti Length" },
+  { key: "pantLength", label: "Salwar/Pant Length" },
+];

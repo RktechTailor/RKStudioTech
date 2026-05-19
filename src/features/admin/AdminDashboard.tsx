@@ -46,6 +46,7 @@ import { clearDummyProducts, seedDummyProducts } from "@/services/productService
 import { useAutoSeed } from "@/hooks/useAutoSeed";
 import PreLaunchFlow from "@/features/admin/PreLaunchFlow";
 import { UserRole } from "@/types/auth";
+import { isAdminPhone } from "@/utils/admin";
 import { hideToast, showError, showLoading, showSuccess } from "@/utils/toast";
 import { getFriendlyErrorMessage } from "@/utils/uiFeedback";
 
@@ -355,7 +356,13 @@ export default function AdminDashboard() {
   const isMobileOrders = useMediaQuery(theme.breakpoints.down("sm"));
   const { user } = useAuth();
   const { trackAsync } = useGlobalLoading();
-  const { orders, error: ordersError } = useOrders({ mode: "all", mockMode: user?.provider === "mock" });
+  const isAdmin = isAdminPhone(user?.phoneNumber)
+    || (!!user?.phoneNumber && user.phoneNumber === process.env.NEXT_PUBLIC_ADMIN_PHONE);
+  const { orders, error: ordersError } = useOrders({
+    mode: isAdmin ? "all" : "user",
+    userId: user?.uid,
+    mockMode: user?.provider === "mock" && !isAdmin,
+  });
   const [users, setUsers] = useState<AppUser[]>([]);
   const [salesRange, setSalesRange] = useState<SalesRange>(7);
   const [search, setSearch] = useState("");
